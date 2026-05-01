@@ -9,12 +9,13 @@ p.sub{text-align:center;color:#64748b;font-size:12px;margin:0 0 12px}
 <body>
 <h1>Convert-to-Pay — Payment Order State Machine</h1>
 <p class="sub">Full lifecycle · partial payments · overpayment · new-quote loop · refunds</p>
-<svg viewBox="0 0 1100 900" style="width:100%;display:block;max-width:1100px;margin:0 auto;overflow:visible">
+<svg viewBox="0 0 1100 740" style="width:100%;display:block;max-width:1100px;margin:0 auto;overflow:visible">
 <defs>
   <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/></marker>
   <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#34d399"/></marker>
   <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#f87171"/></marker>
   <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fb923c"/></marker>
+  <marker id="aam" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
 </defs>
 
 <!-- START -->
@@ -26,89 +27,96 @@ p.sub{text-align:center;color:#64748b;font-size:12px;margin:0 0 12px}
 <text x="490" y="60" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="bold">QUOTE_ACCEPTED</text>
 
 <!-- PARTIAL_DEPOSIT_RECEIVED -->
-<rect x="15" y="180" width="240" height="55" rx="8" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
-<text x="135" y="203" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">PARTIAL_DEPOSIT</text>
-<text x="135" y="221" text-anchor="middle" fill="#93c5fd" font-size="12">_RECEIVED</text>
+<rect x="15" y="185" width="240" height="55" rx="8" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+<text x="135" y="208" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">PARTIAL_DEPOSIT</text>
+<text x="135" y="226" text-anchor="middle" fill="#93c5fd" font-size="12">_RECEIVED</text>
 
 <!-- QUOTE_EXPIRED_NO_DEPOSIT (terminal) -->
-<rect x="760" y="180" width="250" height="55" rx="8" fill="#450a0a" stroke="#dc2626" stroke-width="2"/>
-<text x="885" y="203" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">QUOTE_EXPIRED</text>
-<text x="885" y="221" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">_NO_DEPOSIT  ✗</text>
+<rect x="760" y="185" width="250" height="55" rx="8" fill="#450a0a" stroke="#dc2626" stroke-width="2"/>
+<text x="885" y="208" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">QUOTE_EXPIRED</text>
+<text x="885" y="226" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">_NO_DEPOSIT  ✗</text>
 
-<!-- HEDGE_EXECUTING -->
-<rect x="368" y="335" width="244" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
-<text x="490" y="363" text-anchor="middle" fill="#fdba74" font-size="14" font-weight="bold">HEDGE_EXECUTING</text>
+<!-- QUOTE_EXPIRED (intermediate — fires before partial settlement) -->
+<rect x="355" y="292" width="265" height="46" rx="8" fill="#1c1400" stroke="#b45309" stroke-width="2"/>
+<text x="487" y="320" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">QUOTE_EXPIRED</text>
 
-<!-- FULLY_SETTLED (terminal) -->
-<rect x="15" y="465" width="215" height="46" rx="8" fill="#052e16" stroke="#16a34a" stroke-width="2"/>
-<text x="123" y="493" text-anchor="middle" fill="#86efac" font-size="13" font-weight="bold">FULLY_SETTLED  ✓</text>
+<!-- FULL_PAYMENT_EXECUTED (left path) -->
+<rect x="15" y="395" width="280" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
+<text x="155" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">FULL_PAYMENT_EXECUTED</text>
 
-<!-- PARTIALLY_SETTLED -->
-<rect x="750" y="465" width="230" height="46" rx="8" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
-<text x="865" y="493" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">PARTIALLY_SETTLED</text>
+<!-- PARTIAL_PAYMENT_EXECUTED (right path) -->
+<rect x="630" y="395" width="310" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
+<text x="785" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">PARTIAL_PAYMENT_EXECUTED</text>
 
-<!-- REFUND_PENDING (overpayment only) -->
-<rect x="15" y="560" width="215" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
-<text x="123" y="588" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">REFUND_PENDING</text>
+<!-- SETTLED_FULL_AMOUNT (terminal) -->
+<rect x="15" y="505" width="280" height="46" rx="8" fill="#052e16" stroke="#16a34a" stroke-width="2"/>
+<text x="155" y="533" text-anchor="middle" fill="#86efac" font-size="13" font-weight="bold">SETTLED_FULL_AMOUNT  ✓</text>
+
+<!-- SETTLED_PARTIAL_AMOUNT -->
+<rect x="630" y="505" width="310" height="46" rx="8" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+<text x="785" y="533" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">SETTLED_PARTIAL_AMOUNT</text>
 
 
 <!-- ===== TRANSITIONS ===== -->
 
 <!-- QUOTE_ACCEPTED → PARTIAL_DEPOSIT_RECEIVED -->
-<path d="M430,78 Q285,130 135,180" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
-<text x="248" y="117" text-anchor="middle" fill="#94a3b8" font-size="11">partial deposit received,</text>
-<text x="248" y="130" text-anchor="middle" fill="#94a3b8" font-size="11">cumulative &lt; full (within window)</text>
+<path d="M430,78 Q285,135 135,185" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="252" y="117" text-anchor="middle" fill="#94a3b8" font-size="11">DEPOSIT_PARTIAL_AMOUNT event,</text>
+<text x="252" y="130" text-anchor="middle" fill="#94a3b8" font-size="11">cumulative &lt; full (within window)</text>
 
 <!-- QUOTE_ACCEPTED → QUOTE_EXPIRED_NO_DEPOSIT -->
-<path d="M553,78 Q715,130 885,180" fill="none" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ar)"/>
+<path d="M553,78 Q715,135 885,185" fill="none" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ar)"/>
 <text x="745" y="117" text-anchor="middle" fill="#94a3b8" font-size="11">expiry+buffer,</text>
 <text x="745" y="130" text-anchor="middle" fill="#94a3b8" font-size="11">no deposits</text>
 
-
 <!-- PARTIAL_DEPOSIT_RECEIVED self-loop -->
-<path d="M80,180 C80,150 195,150 195,180" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
-<text x="138" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">more deposits (×n)</text>
+<path d="M80,185 C80,155 200,155 200,185" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="140" y="148" text-anchor="middle" fill="#94a3b8" font-size="10">more deposits (×n)</text>
 
-<!-- PARTIAL_DEPOSIT_RECEIVED → HEDGE_EXECUTING -->
-<path d="M255,207 Q330,265 400,335" fill="none" stroke="#ea580c" stroke-width="1.5" marker-end="url(#ao)"/>
-<text x="300" y="258" text-anchor="middle" fill="#94a3b8" font-size="10">cumulative = full (→ immediate)</text>
-<text x="300" y="271" text-anchor="middle" fill="#94a3b8" font-size="10">OR expiry+buffer (→ partial hedge)</text>
+<!-- PARTIAL_DEPOSIT_RECEIVED → FULL_PAYMENT_EXECUTED -->
+<path d="M135,240 Q135,320 155,395" fill="none" stroke="#ea580c" stroke-width="1.5" marker-end="url(#ao)"/>
+<text x="60" y="302" text-anchor="middle" fill="#94a3b8" font-size="10">cumulative = full</text>
+<text x="60" y="315" text-anchor="middle" fill="#94a3b8" font-size="10">(immediate)</text>
 
-<!-- HEDGE_EXECUTING → FULLY_SETTLED -->
-<path d="M403,381 Q265,423 123,465" fill="none" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ag)"/>
-<text x="237" y="432" text-anchor="middle" fill="#94a3b8" font-size="10">full amount hedged at original rate</text>
-<text x="237" y="445" text-anchor="middle" fill="#86efac" font-size="10" font-style="italic">⟶ PAYMENT_EXECUTED</text>
+<!-- PARTIAL_DEPOSIT_RECEIVED → QUOTE_EXPIRED -->
+<path d="M255,215 Q315,260 355,315" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#aam)"/>
+<text x="360" y="256" text-anchor="middle" fill="#94a3b8" font-size="10">expiry+buffer,</text>
+<text x="360" y="269" text-anchor="middle" fill="#94a3b8" font-size="10">cumulative &lt; full</text>
 
-<!-- HEDGE_EXECUTING → PARTIALLY_SETTLED -->
-<path d="M577,381 Q715,423 865,465" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
-<text x="745" y="428" text-anchor="middle" fill="#94a3b8" font-size="10">partial amount hedged at original rate</text>
-<text x="745" y="441" text-anchor="middle" fill="#86efac" font-size="10" font-style="italic">⟶ PARTIAL_PAYMENT_EXECUTED</text>
+<!-- QUOTE_EXPIRED → PARTIAL_PAYMENT_EXECUTED -->
+<path d="M620,315 Q625,355 630,418" fill="none" stroke="#ea580c" stroke-width="1.5" marker-end="url(#ao)"/>
+<text x="700" y="360" text-anchor="middle" fill="#94a3b8" font-size="10">settlement executes</text>
+<text x="700" y="373" text-anchor="middle" fill="#94a3b8" font-size="10">at original rate</text>
 
-<!-- FULLY_SETTLED → REFUND_PENDING (dashed, conditional) -->
-<path d="M123,511 L123,560" fill="none" stroke="#ea580c" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ao)"/>
-<text x="148" y="535" fill="#94a3b8" font-size="10">if overpayment</text>
-<text x="148" y="548" fill="#86efac" font-size="10" font-style="italic">⟶ REFUND_AVAILABLE</text>
+<!-- FULL_PAYMENT_EXECUTED → SETTLED_FULL_AMOUNT -->
+<path d="M155,441 L155,505" fill="none" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ag)"/>
+<text x="240" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ SETTLED_FULL_AMOUNT event</text>
 
-<!-- PARTIALLY_SETTLED → QUOTE_ACCEPTED (new quote loop, right side) -->
-<path d="M980,488 C1065,488 1065,55 620,55" fill="none" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#ag)"/>
-<text transform="rotate(-90,1078,310)" x="1078" y="310" text-anchor="middle" fill="#86efac" font-size="10">client requests new quote · same client_order_id · address reused</text>
+<!-- PARTIAL_PAYMENT_EXECUTED → SETTLED_PARTIAL_AMOUNT -->
+<path d="M785,441 L785,505" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="650" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ SETTLED_PARTIAL_AMOUNT event</text>
+
+<!-- SETTLED_PARTIAL_AMOUNT → QUOTE_ACCEPTED (new quote loop, right side) -->
+<path d="M940,528 C1065,528 1065,55 620,55" fill="none" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#ag)"/>
+<text transform="rotate(-90,1078,310)" x="1078" y="310" text-anchor="middle" fill="#86efac" font-size="10">client requests new quote · same vault_id · address reused</text>
+
 
 <!-- ===== LEGEND ===== -->
-<rect x="15" y="820" width="680" height="62" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-<text x="28" y="838" fill="#94a3b8" font-size="11" font-weight="bold">Legend</text>
-<line x1="80" y1="836" x2="112" y2="836" stroke="#3b82f6" stroke-width="2" marker-end="url(#ab)"/>
-<text x="117" y="839" fill="#94a3b8" font-size="11">State transition</text>
-<line x1="225" y1="836" x2="257" y2="836" stroke="#ea580c" stroke-width="2" marker-end="url(#ao)"/>
-<text x="262" y="839" fill="#94a3b8" font-size="11">Hedge / refund</text>
-<line x1="368" y1="836" x2="400" y2="836" stroke="#16a34a" stroke-width="2" marker-end="url(#ag)"/>
-<text x="405" y="839" fill="#94a3b8" font-size="11">Success terminal</text>
-<line x1="515" y1="836" x2="547" y2="836" stroke="#dc2626" stroke-width="2" marker-end="url(#ar)"/>
-<text x="552" y="839" fill="#94a3b8" font-size="11">Failure</text>
-<line x1="80" y1="860" x2="112" y2="860" stroke="#ea580c" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#ao)"/>
-<text x="117" y="863" fill="#94a3b8" font-size="11">Conditional path</text>
-<line x1="240" y1="860" x2="272" y2="860" stroke="#34d399" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ag)"/>
-<text x="277" y="863" fill="#94a3b8" font-size="11">Loop-back (new quote, same address)</text>
-<text x="490" y="863" fill="#86efac" font-size="10" font-style="italic">  Italic = webhook event fired</text>
+<rect x="15" y="668" width="790" height="44" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="28" y="686" fill="#94a3b8" font-size="11" font-weight="bold">Legend</text>
+<line x1="85" y1="684" x2="117" y2="684" stroke="#3b82f6" stroke-width="2" marker-end="url(#ab)"/>
+<text x="122" y="687" fill="#94a3b8" font-size="11">State transition</text>
+<line x1="250" y1="684" x2="282" y2="684" stroke="#ea580c" stroke-width="2" marker-end="url(#ao)"/>
+<text x="287" y="687" fill="#94a3b8" font-size="11">Execution path</text>
+<line x1="400" y1="684" x2="432" y2="684" stroke="#16a34a" stroke-width="2" marker-end="url(#ag)"/>
+<text x="437" y="687" fill="#94a3b8" font-size="11">Success terminal</text>
+<line x1="565" y1="684" x2="597" y2="684" stroke="#dc2626" stroke-width="2" marker-end="url(#ar)"/>
+<text x="602" y="687" fill="#94a3b8" font-size="11">Failure terminal</text>
+<line x1="85" y1="704" x2="117" y2="704" stroke="#b45309" stroke-width="2" marker-end="url(#aam)"/>
+<text x="122" y="707" fill="#94a3b8" font-size="11">Expiry event path</text>
+<line x1="260" y1="704" x2="292" y2="704" stroke="#34d399" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ag)"/>
+<text x="297" y="707" fill="#94a3b8" font-size="11">Loop-back (new quote, same vault)</text>
+<text x="525" y="707" fill="#86efac" font-size="10" font-style="italic">  Italic = webhook event fired</text>
 </svg>
 </body>
 </html>
