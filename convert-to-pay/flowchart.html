@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body{background:#0f172a;margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+h1{text-align:center;color:#7dd3fc;font-size:19px;margin:0 0 4px;font-weight:600}
+p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
+</style>
+</head>
+<body>
+<h1>Convert-to-Pay — Payment Flow</h1>
+<p class="sub">Four scenarios for stakeholder &amp; client review</p>
+<svg viewBox="0 0 1100 1810" style="width:100%;display:block;max-width:1100px;margin:0 auto">
+<defs>
+  <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/></marker>
+  <marker id="awh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/></marker>
+  <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#34d399"/></marker>
+  <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fb923c"/></marker>
+</defs>
+
+<!-- ===== LANE HEADERS ===== -->
+<rect x="5"   y="5" width="205" height="44" rx="7" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+<text x="108" y="32" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="bold">Payer</text>
+<rect x="220" y="5" width="215" height="44" rx="7" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+<text x="328" y="32" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="bold">HubPay (Client)</text>
+<rect x="445" y="5" width="295" height="44" rx="7" fill="#172554" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="593" y="32" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="bold">Hex Trust System</text>
+<rect x="750" y="5" width="240" height="44" rx="7" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+<text x="870" y="32" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="bold">Blockchain</text>
+
+<!-- ===== LIFELINES ===== -->
+<line x1="108" y1="49" x2="108" y2="1800" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,6"/>
+<line x1="328" y1="49" x2="328" y2="1800" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,6"/>
+<line x1="593" y1="49" x2="593" y2="1800" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,6" opacity="0.3"/>
+<line x1="870" y1="49" x2="870" y2="1800" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,6"/>
+
+<!-- ================================================================ -->
+<!-- FLOW 1 — Full payment within window                              -->
+<!-- ================================================================ -->
+<rect x="0" y="58" width="1100" height="30" fill="#0c2340"/>
+<text x="550" y="78" text-anchor="middle" fill="#60a5fa" font-size="13" font-weight="bold">FLOW 1 — Full payment within quote window  →  immediate hedge</text>
+
+<!-- HubPay → HexTrust: accept-quote -->
+<text x="461" y="110" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, client_order_id)</text>
+<line x1="328" y1="120" x2="585" y2="120" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HexTrust → HubPay: quote -->
+<text x="461" y="148" text-anchor="middle" fill="#94a3b8" font-size="11">quote: rate · crypto_amount · deposit_address · expiry</text>
+<line x1="593" y1="158" x2="336" y2="158" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HubPay → Payer: instructions -->
+<text x="218" y="186" text-anchor="middle" fill="#94a3b8" font-size="11">send [crypto_amount] to [address] before expiry</text>
+<line x1="328" y1="196" x2="116" y2="196" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- Payer → Blockchain: sends full -->
+<text x="489" y="224" text-anchor="middle" fill="#94a3b8" font-size="11">sends full crypto amount on-chain</text>
+<line x1="108" y1="234" x2="862" y2="234" stroke="#94a3b8" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- Blockchain → HexTrust: full confirmation -->
+<text x="732" y="262" text-anchor="middle" fill="#94a3b8" font-size="11">on-chain confirmation  (cumulative = full amount)</text>
+<line x1="870" y1="272" x2="601" y2="272" stroke="#94a3b8" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- internal: cumulative = full -->
+<rect x="455" y="283" width="276" height="26" rx="5" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="593" y="300" text-anchor="middle" fill="#93c5fd" font-size="11">cumulative = full  →  trigger immediate hedge</text>
+
+<!-- HexTrust → HubPay: DEPOSIT_RECEIVED (full) — fires before hedge -->
+<text x="461" y="328" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: DEPOSIT_RECEIVED  (full amount · refundableAmount if overpaid)</text>
+<line x1="593" y1="340" x2="336" y2="340" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- internal: executes hedge -->
+<rect x="455" y="352" width="276" height="26" rx="5" fill="#431407" stroke="#ea580c" stroke-width="1.5"/>
+<text x="593" y="369" text-anchor="middle" fill="#fdba74" font-size="11">executes hedge at original quoted rate</text>
+
+<!-- HexTrust → HubPay: PAYMENT_EXECUTED -->
+<text x="461" y="408" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: PAYMENT_EXECUTED  (fiat amount locked ✓)</text>
+<line x1="593" y1="420" x2="336" y2="420" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- HubPay → Payer: confirmed -->
+<text x="218" y="448" text-anchor="middle" fill="#86efac" font-size="11">payment confirmed  ✓</text>
+<line x1="328" y1="458" x2="116" y2="458" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+
+<!-- ================================================================ -->
+<!-- FLOW 2 — Partial deposits                                         -->
+<!-- ================================================================ -->
+<rect x="0" y="480" width="1100" height="30" fill="#1c1400"/>
+<text x="550" y="500" text-anchor="middle" fill="#fb923c" font-size="13" font-weight="bold">FLOW 2 — Partial deposit(s) within window  →  hedge at expiry + buffer</text>
+
+<!-- HubPay → HexTrust -->
+<text x="461" y="538" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, client_order_id)</text>
+<line x1="328" y1="548" x2="585" y2="548" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HexTrust → HubPay -->
+<text x="461" y="576" text-anchor="middle" fill="#94a3b8" font-size="11">quote: rate · crypto_amount · deposit_address · expiry</text>
+<line x1="593" y1="586" x2="336" y2="586" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HubPay → Payer -->
+<text x="218" y="614" text-anchor="middle" fill="#94a3b8" font-size="11">send [crypto_amount] to [address] before expiry</text>
+<line x1="328" y1="624" x2="116" y2="624" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- Payer → Blockchain: partial -->
+<text x="489" y="652" text-anchor="middle" fill="#94a3b8" font-size="11">sends PARTIAL crypto amount on-chain</text>
+<line x1="108" y1="662" x2="862" y2="662" stroke="#94a3b8" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- Blockchain → HexTrust -->
+<text x="732" y="690" text-anchor="middle" fill="#94a3b8" font-size="11">on-chain confirmation  (partial,  cumulative &lt; full)</text>
+<line x1="870" y1="700" x2="601" y2="700" stroke="#94a3b8" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HexTrust → HubPay: DEPOSIT_RECEIVED with outstanding -->
+<text x="461" y="726" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: DEPOSIT_RECEIVED</text>
+<text x="461" y="739" text-anchor="middle" fill="#94a3b8" font-size="10.5">(deposited: X fiat · outstanding: Y fiat · outstanding crypto est.: Z)</text>
+<line x1="593" y1="752" x2="336" y2="752" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- HubPay → Payer -->
+<text x="218" y="780" text-anchor="middle" fill="#94a3b8" font-size="11">received X fiat  ·  Y fiat still outstanding</text>
+<line x1="328" y1="790" x2="116" y2="790" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- more deposits note -->
+<text x="550" y="814" text-anchor="middle" fill="#475569" font-size="11" font-style="italic">⋯  each additional deposit triggers another DEPOSIT_RECEIVED webhook  ⋯</text>
+
+<!-- EXPIRY BANNER -->
+<rect x="0" y="824" width="1100" height="26" fill="#3b1f00"/>
+<text x="550" y="841" text-anchor="middle" fill="#fb923c" font-size="12" font-weight="bold">⏰  QUOTE EXPIRES  —  system waits 3–5 min buffer for any in-flight on-chain deposits</text>
+
+<!-- HexTrust → HubPay: QUOTE_EXPIRED_PARTIAL -->
+<text x="461" y="875" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: QUOTE_EXPIRED_PARTIAL</text>
+<text x="461" y="888" text-anchor="middle" fill="#94a3b8" font-size="10.5">(quote window closed  ·  partial hedge executing within buffer)</text>
+<line x1="593" y1="901" x2="336" y2="901" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- internal: partial hedge -->
+<rect x="455" y="913" width="276" height="32" rx="5" fill="#431407" stroke="#ea580c" stroke-width="1.5"/>
+<text x="593" y="929" text-anchor="middle" fill="#fdba74" font-size="11">executes partial hedge at ORIGINAL rate</text>
+<text x="593" y="942" text-anchor="middle" fill="#fb923c" font-size="10">(HEX absorbs any slippage)</text>
+
+<!-- HexTrust → HubPay: PARTIAL_PAYMENT_EXECUTED -->
+<text x="461" y="977" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: PARTIAL_PAYMENT_EXECUTED</text>
+<text x="461" y="990" text-anchor="middle" fill="#94a3b8" font-size="10.5">(fiat settled: X · outstanding fiat: Y · outstanding crypto est.: Z)</text>
+<line x1="593" y1="1003" x2="336" y2="1003" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- HubPay → Payer -->
+<text x="218" y="1031" text-anchor="middle" fill="#fdba74" font-size="11">partial settled  ·  Y fiat still outstanding</text>
+<line x1="328" y1="1041" x2="116" y2="1041" stroke="#fb923c" stroke-width="2" marker-end="url(#ao)"/>
+
+<!-- ================================================================ -->
+<!-- FLOW 3 — New quote for outstanding                                -->
+<!-- ================================================================ -->
+<rect x="0" y="1063" width="1100" height="30" fill="#0c2340"/>
+<text x="550" y="1083" text-anchor="middle" fill="#34d399" font-size="13" font-weight="bold">FLOW 3 — Outstanding amount: client requests new quote  (same client_order_id)</text>
+
+<!-- HubPay → HexTrust -->
+<text x="461" y="1121" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (outstanding_amount · same client_order_id)</text>
+<line x1="328" y1="1131" x2="585" y2="1131" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+
+<!-- HexTrust → HubPay: new quote, same address -->
+<text x="461" y="1159" text-anchor="middle" fill="#94a3b8" font-size="11">new quote at current market rate</text>
+<text x="461" y="1172" text-anchor="middle" fill="#86efac" font-size="10.5">same deposit address reused  ·  new expiry window</text>
+<line x1="593" y1="1184" x2="336" y2="1184" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+
+<!-- HubPay → Payer -->
+<text x="218" y="1212" text-anchor="middle" fill="#94a3b8" font-size="11">send outstanding amount to same address</text>
+<line x1="328" y1="1222" x2="116" y2="1222" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+
+<!-- continuation note -->
+<rect x="240" y="1236" width="620" height="24" rx="5" fill="#0f2d1c" stroke="#16a34a" stroke-width="1.5"/>
+<text x="550" y="1252" text-anchor="middle" fill="#86efac" font-size="11">→  continues as Flow 1  (full deposit)  or Flow 2  (partial again)</text>
+
+<!-- ================================================================ -->
+<!-- FLOW 4 — Overpayment refund                                       -->
+<!-- ================================================================ -->
+<rect x="0" y="1275" width="1100" height="30" fill="#2d1f0e"/>
+<text x="550" y="1295" text-anchor="middle" fill="#fb923c" font-size="13" font-weight="bold">FLOW 4 — Overpayment refund  (triggered when refundableAmount &gt; 0 in DEPOSIT_RECEIVED webhook)</text>
+
+<!-- trigger note -->
+<rect x="200" y="1315" width="700" height="24" rx="5" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="550" y="1331" text-anchor="middle" fill="#94a3b8" font-size="10.5">HubPay detects  refundableAmount &gt; 0  in  DEPOSIT_RECEIVED  webhook  and calls the refund endpoint</text>
+
+<!-- HubPay → HexTrust: POST /refund -->
+<text x="461" y="1369" text-anchor="middle" fill="#94a3b8" font-size="11">POST /refund  (client_order_id · refund_destination_address)</text>
+<line x1="328" y1="1379" x2="585" y2="1379" stroke="#fb923c" stroke-width="2" marker-end="url(#ao)"/>
+
+<!-- HexTrust → HubPay: ack -->
+<text x="461" y="1407" text-anchor="middle" fill="#94a3b8" font-size="11">refund accepted  (refund_id · amount · estimated on-chain fee)</text>
+<line x1="593" y1="1417" x2="336" y2="1417" stroke="#fb923c" stroke-width="2" marker-end="url(#ao)"/>
+
+<!-- internal: initiates on-chain transfer -->
+<rect x="455" y="1429" width="276" height="26" rx="5" fill="#431407" stroke="#ea580c" stroke-width="1.5"/>
+<text x="593" y="1446" text-anchor="middle" fill="#fdba74" font-size="11">initiates on-chain transfer of excess crypto</text>
+
+<!-- HexTrust → Blockchain -->
+<text x="732" y="1483" text-anchor="middle" fill="#94a3b8" font-size="11">broadcasts refund tx to destination address</text>
+<line x1="593" y1="1493" x2="862" y2="1493" stroke="#fb923c" stroke-width="2" marker-end="url(#ao)"/>
+
+<!-- Blockchain → HexTrust: confirmed -->
+<text x="732" y="1535" text-anchor="middle" fill="#94a3b8" font-size="11">on-chain confirmation</text>
+<line x1="870" y1="1545" x2="601" y2="1545" stroke="#94a3b8" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- HexTrust → HubPay: REFUND_AVAILABLE -->
+<text x="461" y="1573" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: REFUND_AVAILABLE  (amount · tx_hash · destination_address)</text>
+<line x1="593" y1="1585" x2="336" y2="1585" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+
+<!-- HubPay → Payer -->
+<text x="218" y="1613" text-anchor="middle" fill="#94a3b8" font-size="11">refund of X crypto sent to your address</text>
+<line x1="328" y1="1623" x2="116" y2="1623" stroke="#fb923c" stroke-width="2" marker-end="url(#ao)"/>
+
+<!-- ================================================================ -->
+<!-- LEGEND                                                            -->
+<!-- ================================================================ -->
+<rect x="5" y="1652" width="1090" height="50" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="20" y="1670" fill="#94a3b8" font-size="11" font-weight="bold">Webhook events (⚡ purple dashed):</text>
+<text x="20" y="1688" fill="#c4b5fd" font-size="10.5">DEPOSIT_RECEIVED  ·  QUOTE_EXPIRED_PARTIAL  ·  PARTIAL_PAYMENT_EXECUTED  ·  PAYMENT_EXECUTED  ·  REFUND_AVAILABLE</text>
+<line x1="700" y1="1668" x2="730" y2="1668" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
+<text x="735" y="1671" fill="#c4b5fd" font-size="10.5">push webhook</text>
+<line x1="840" y1="1668" x2="870" y2="1668" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
+<text x="875" y="1671" fill="#94a3b8" font-size="10.5">API call / chain event</text>
+
+</svg>
+</body>
+</html>
