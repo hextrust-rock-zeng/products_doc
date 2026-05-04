@@ -40,7 +40,7 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 <text x="550" y="78" text-anchor="middle" fill="#60a5fa" font-size="13" font-weight="bold">FLOW 1 — Full payment within quote window  →  immediate settlement</text>
 
 <!-- HubPay → HexTrust: accept-quote -->
-<text x="461" y="107" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, vault_id)</text>
+<text x="461" y="107" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, depositAddress?)</text>
 <line x1="328" y1="118" x2="585" y2="118" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
 
 <!-- HexTrust → HubPay: quote -->
@@ -89,7 +89,7 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 <text x="550" y="536" text-anchor="middle" fill="#fb923c" font-size="13" font-weight="bold">FLOW 2 — Partial deposit(s) within window  →  settlement executes at expiry</text>
 
 <!-- HubPay → HexTrust -->
-<text x="461" y="575" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, vault_id)</text>
+<text x="461" y="575" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (amount, currency, depositAddress?)</text>
 <line x1="328" y1="586" x2="585" y2="586" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
 
 <!-- HexTrust → HubPay -->
@@ -126,7 +126,7 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 
 <!-- HexTrust → HubPay: QUOTE_EXPIRED -->
 <text x="461" y="912" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: QUOTE_EXPIRED</text>
-<text x="461" y="925" text-anchor="middle" fill="#94a3b8" font-size="10.5">(quote window closed  ·  settlement processing begins)</text>
+<text x="461" y="925" text-anchor="middle" fill="#94a3b8" font-size="10.5">(quote window closed · outstandingFiat: Y · outstandingCrypto: Z)</text>
 <line x1="593" y1="938" x2="336" y2="938" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
 
 <!-- HexTrust → HubPay: PAYMENT_EXECUTED (partial) -->
@@ -147,10 +147,10 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 <!-- FLOW 3 — New quote for outstanding                                -->
 <!-- ================================================================ -->
 <rect x="0" y="1102" width="1100" height="30" fill="#0c2340"/>
-<text x="550" y="1122" text-anchor="middle" fill="#34d399" font-size="13" font-weight="bold">FLOW 3 — Outstanding amount: client requests new quote  (same vault_id)</text>
+<text x="550" y="1122" text-anchor="middle" fill="#34d399" font-size="13" font-weight="bold">FLOW 3 — Outstanding amount: client requests new quote  (same depositAddress)</text>
 
 <!-- HubPay → HexTrust -->
-<text x="461" y="1160" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (outstanding_amount · same vault_id)</text>
+<text x="461" y="1160" text-anchor="middle" fill="#94a3b8" font-size="11">POST /accept-quote  (outstanding_amount · same depositAddress)</text>
 <line x1="328" y1="1170" x2="585" y2="1170" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
 
 <!-- HexTrust → HubPay: new quote, same address -->
