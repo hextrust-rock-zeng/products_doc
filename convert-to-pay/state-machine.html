@@ -40,21 +40,21 @@ p.sub{text-align:center;color:#64748b;font-size:12px;margin:0 0 12px}
 <rect x="355" y="292" width="265" height="46" rx="8" fill="#1c1400" stroke="#b45309" stroke-width="2"/>
 <text x="487" y="320" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">QUOTE_EXPIRED</text>
 
-<!-- FULL_PAYMENT_EXECUTED (left path) -->
+<!-- PAYMENT_EXECUTED (left — full payment path) -->
 <rect x="15" y="395" width="280" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
-<text x="155" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">FULL_PAYMENT_EXECUTED</text>
+<text x="155" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">PAYMENT_EXECUTED</text>
 
-<!-- PARTIAL_PAYMENT_EXECUTED (right path) -->
+<!-- PAYMENT_EXECUTED (right — partial payment path) -->
 <rect x="630" y="395" width="310" height="46" rx="8" fill="#431407" stroke="#ea580c" stroke-width="2"/>
-<text x="785" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">PARTIAL_PAYMENT_EXECUTED</text>
+<text x="785" y="423" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="bold">PAYMENT_EXECUTED</text>
 
-<!-- SETTLED_FULL_AMOUNT (terminal) -->
+<!-- PAYMENT_SETTLED (terminal, full path) -->
 <rect x="15" y="505" width="280" height="46" rx="8" fill="#052e16" stroke="#16a34a" stroke-width="2"/>
-<text x="155" y="533" text-anchor="middle" fill="#86efac" font-size="13" font-weight="bold">SETTLED_FULL_AMOUNT  ✓</text>
+<text x="155" y="533" text-anchor="middle" fill="#86efac" font-size="13" font-weight="bold">PAYMENT_SETTLED  ✓</text>
 
-<!-- SETTLED_PARTIAL_AMOUNT -->
+<!-- PAYMENT_SETTLED (partial path — new quote loop) -->
 <rect x="630" y="505" width="310" height="46" rx="8" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
-<text x="785" y="533" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">SETTLED_PARTIAL_AMOUNT</text>
+<text x="785" y="533" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">PAYMENT_SETTLED</text>
 
 
 <!-- ===== TRANSITIONS ===== -->
@@ -66,37 +66,37 @@ p.sub{text-align:center;color:#64748b;font-size:12px;margin:0 0 12px}
 
 <!-- QUOTE_ACCEPTED → QUOTE_EXPIRED_NO_DEPOSIT -->
 <path d="M553,78 Q715,135 885,185" fill="none" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ar)"/>
-<text x="745" y="117" text-anchor="middle" fill="#94a3b8" font-size="11">expiry+buffer,</text>
+<text x="745" y="117" text-anchor="middle" fill="#94a3b8" font-size="11">at expiry,</text>
 <text x="745" y="130" text-anchor="middle" fill="#94a3b8" font-size="11">no deposits</text>
 
 <!-- PARTIAL_DEPOSIT_RECEIVED self-loop -->
 <path d="M80,185 C80,155 200,155 200,185" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
 <text x="140" y="148" text-anchor="middle" fill="#94a3b8" font-size="10">more deposits (×n)</text>
 
-<!-- PARTIAL_DEPOSIT_RECEIVED → FULL_PAYMENT_EXECUTED -->
+<!-- PARTIAL_DEPOSIT_RECEIVED → PAYMENT_EXECUTED (full) -->
 <path d="M135,240 Q135,320 155,395" fill="none" stroke="#ea580c" stroke-width="1.5" marker-end="url(#ao)"/>
 <text x="60" y="302" text-anchor="middle" fill="#94a3b8" font-size="10">cumulative = full</text>
 <text x="60" y="315" text-anchor="middle" fill="#94a3b8" font-size="10">(immediate)</text>
 
 <!-- PARTIAL_DEPOSIT_RECEIVED → QUOTE_EXPIRED -->
 <path d="M255,215 Q315,260 355,315" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#aam)"/>
-<text x="360" y="256" text-anchor="middle" fill="#94a3b8" font-size="10">expiry+buffer,</text>
+<text x="360" y="256" text-anchor="middle" fill="#94a3b8" font-size="10">at expiry,</text>
 <text x="360" y="269" text-anchor="middle" fill="#94a3b8" font-size="10">cumulative &lt; full</text>
 
-<!-- QUOTE_EXPIRED → PARTIAL_PAYMENT_EXECUTED -->
+<!-- QUOTE_EXPIRED → PAYMENT_EXECUTED (partial) -->
 <path d="M620,315 Q625,355 630,418" fill="none" stroke="#ea580c" stroke-width="1.5" marker-end="url(#ao)"/>
 <text x="700" y="360" text-anchor="middle" fill="#94a3b8" font-size="10">settlement executes</text>
 <text x="700" y="373" text-anchor="middle" fill="#94a3b8" font-size="10">at original rate</text>
 
-<!-- FULL_PAYMENT_EXECUTED → SETTLED_FULL_AMOUNT -->
+<!-- PAYMENT_EXECUTED (full) → PAYMENT_SETTLED -->
 <path d="M155,441 L155,505" fill="none" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ag)"/>
-<text x="240" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ SETTLED_FULL_AMOUNT event</text>
+<text x="240" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ PAYMENT_SETTLED event</text>
 
-<!-- PARTIAL_PAYMENT_EXECUTED → SETTLED_PARTIAL_AMOUNT -->
+<!-- PAYMENT_EXECUTED (partial) → PAYMENT_SETTLED (partial) -->
 <path d="M785,441 L785,505" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ab)"/>
-<text x="650" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ SETTLED_PARTIAL_AMOUNT event</text>
+<text x="650" y="478" fill="#86efac" font-size="10" font-style="italic">⟶ PAYMENT_SETTLED event</text>
 
-<!-- SETTLED_PARTIAL_AMOUNT → QUOTE_ACCEPTED (new quote loop, right side) -->
+<!-- PAYMENT_SETTLED (partial) → QUOTE_ACCEPTED (new quote loop, right side) -->
 <path d="M940,528 C1065,528 1065,55 620,55" fill="none" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#ag)"/>
 <text transform="rotate(-90,1078,310)" x="1078" y="310" text-anchor="middle" fill="#86efac" font-size="10">client requests new quote · same vault_id · address reused</text>
 
