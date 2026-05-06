@@ -1,0 +1,771 @@
+openapi: 3.0.3
+info:
+  title: Hex Trust — Convert-to-Pay API
+  version: "2.0"
+  description: |
+    Convert-to-Pay allows clients (e.g. HubPay) to collect crypto from payers
+    and receive fiat settlement at a locked quoted rate.
+
+    ## Authentication
+    Every request requires both:
+    - `Authorization: Bearer <signed-JWT>` — signed with the client's private key
+    - `X-API-KEY` — the client's API key ID
+
+    ## Revised Flow (v2)
+    This spec reflects the revised partial-deposit flow:
+    - Partial deposits made within the quote window are **executed at the original quoted rate** at expiry.
+    - A `SETTLED_PARTIAL_AMOUNT` event is fired when partial fiat is delivered; the client then opens a new quote for the outstanding balance.
+    - The same deposit address can be reused across quotes by passing `depositAddress` in `/accept-quote`.
+    - Overpayments are surfaced via `refundableAmount`; the client refunds the payer using the standard withdrawal API.
+
+    ## Order State Machine
+    ```
+    QUOTE_ACCEPTED
+      ├─→ PARTIAL_DEPOSIT_RECEIVED  (partial deposit received within window)
+      │     ├─→ DEPOSITED            (cumulative = full → DEPOSIT_FULL_AMOUNT_COMPLETED)
+      │     └─→ QUOTE_EXPIRED        (window expires with partial deposits)
+      ├─→ DEPOSITED                  (full deposit within window → DEPOSIT_FULL_AMOUNT_COMPLETED)
+      └─→ QUOTE_EXPIRED              (window expires, no deposits)
+    DEPOSITED
+      └─→ PAYMENT_EXECUTED           (full amount confirmed → executes at quoted rate)
+    QUOTE_EXPIRED
+      └─→ PAYMENT_EXECUTED           (~1-2 min buffer → trade at original quoted rate)
+    PAYMENT_EXECUTED
+      ├─→ SETTLED_FULL_AMOUNT ✓      (full fiat delivered — terminal)
+      └─→ SETTLED_PARTIAL_AMOUNT ✓   (partial fiat delivered — client creates new trade for outstanding)
+    FAILED ✗                         (terminal failure)
+    ```
+
+servers:
+  - url: https://api.hexsafe.io/v1
+    description: Production
+  - url: https://api.staging.hexsafe.io/v1
+    description: Staging
+
+security:
+  - APIKey: []
+  - Bearer: []
+
+tags:
+  - name: convert-to-pay
+    description: Convert-to-Pay payment flow
+
+paths:
+  /convert-to-pay/availablePairs:
+    get:
+      summary: Get available trading pairs
+      description: Lists the asset pairs available for convert-to-pay trades.
+      operationId: getAvailablePairs
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseId"
+        - name: fromAsset
+          in: query
+          description: Filter by from-asset ticker (e.g. USDT)
+          schema:
+            type: string
+        - name: toAsset
+          in: query
+          description: Filter by to-asset ticker (e.g. AED)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of available pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailablePair"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /convert-to-pay/assetInfo:
+    get:
+      summary: Get asset info
+      description: Returns asset metadata required when filling in a quote request.
+      operationId: getAssetInfo
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseId"
+        - name: assetKey
+          in: query
+          description: Asset ticker key (e.g. BTC)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset info list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetInfo"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /convert-to-pay/getQuote:
+    post:
+      summary: Request a quote
+      description: |
+        Request a conversion quote for a given asset pair and amount.
+        Provide either `fromAmount` or `toAmount`; the other will be calculated.
+        Returns a `quoteId` valid until `validTimestamp`.
+      operationId: getQuote
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientIdRequired"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetQuoteRequest"
+      responses:
+        "200":
+          description: Quote details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetQuoteResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /convert-to-pay/acceptQuote:
+    post:
+      summary: Accept a quote
+      description: |
+        Lock in a quote and receive a deposit address for the payer.
+
+        **Address reuse:** Pass `depositAddress` from a prior quote to reuse the same
+        on-chain address with a new expiry window. The payer does not need a new address.
+        If omitted, a new deposit address is assigned.
+
+        Returns a `paymentId` to track the order via `paymentStatus` and webhooks.
+      operationId: acceptQuote
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientIdRequired"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptQuoteRequest"
+      responses:
+        "200":
+          description: Accepted quote with deposit address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptQuoteResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /convert-to-pay/paymentStatus:
+    get:
+      summary: Get payment status
+      description: |
+        Query the current state of a payment order by `paymentId`.
+
+        **Partial payment fields:** `outstandingFromAmount` and `outstandingToAmount` are
+        non-zero when a partial settlement has occurred. Use these to create a follow-up quote.
+
+        **Overpayment fields:** `isRefundable` and `refundableAmount` indicate excess crypto
+        that can be returned to the payer via the standard withdrawal API.
+      operationId: getPaymentStatus
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+        - name: paymentId
+          in: query
+          required: true
+          description: Payment order ID returned by acceptQuote
+          schema:
+            type: string
+            format: uuid
+            example: 73797374-656d-4000-0000-00008badf00d
+      responses:
+        "200":
+          description: Payment order status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /convert-to-pay/paymentHistory:
+    get:
+      summary: Get payment history
+      description: Query all payment orders within a time range. Max 1000 records per call; use `moreData` to paginate.
+      operationId: getPaymentHistory
+      tags: [convert-to-pay]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+        - name: startTime
+          in: query
+          required: true
+          description: Start of range (Unix ms)
+          schema:
+            type: integer
+            format: int64
+            example: 1732752000000
+        - name: endTime
+          in: query
+          required: true
+          description: End of range (Unix ms)
+          schema:
+            type: integer
+            format: int64
+            example: 1740614400000
+        - name: limit
+          in: query
+          description: "Max records to return (default: 100, max: 1000)"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        "200":
+          description: Paginated payment history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHistoryResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    APIKey:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+      description: API key ID issued by Hex Trust
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT signed with the client's private key
+
+  parameters:
+    XClientId:
+      name: X-Client-Id
+      in: header
+      description: Trade client ID
+      schema:
+        type: string
+        example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+    XClientIdRequired:
+      name: X-Client-Id
+      in: header
+      required: true
+      description: Trade client ID
+      schema:
+        type: string
+        example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+    XEnterpriseId:
+      name: X-Enterprise-Id
+      in: header
+      description: Enterprise ID
+      schema:
+        type: string
+        example: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+    XEnterpriseIdRequired:
+      name: X-Enterprise-Id
+      in: header
+      required: true
+      description: Enterprise ID
+      schema:
+        type: string
+        example: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: INVALID_REQUEST
+        message:
+          type: string
+          example: quoteId is required
+      required: [code, message]
+
+    OrderStatus:
+      type: string
+      description: |
+        Payment order state:
+        - `QUOTE_ACCEPTED` — quote locked in; awaiting payer deposit
+        - `PARTIAL_DEPOSIT_RECEIVED` — one or more partial deposits received within quote window
+        - `DEPOSITED` — full deposit confirmed (`DEPOSIT_FULL_AMOUNT_COMPLETED`); awaiting payment execution
+        - `PAYMENT_EXECUTED` — conversion committed (full or partial at original quoted rate)
+        - `SETTLED_FULL_AMOUNT` — full fiat delivered to client ✓ terminal
+        - `SETTLED_PARTIAL_AMOUNT` — partial fiat delivered; `outstandingToAmount` > 0; create new quote ✓ terminal
+        - `QUOTE_EXPIRED` — window expired with no deposits ✗ terminal
+        - `FAILED` — payment failed ✗ terminal
+      enum:
+        - QUOTE_ACCEPTED
+        - PARTIAL_DEPOSIT_RECEIVED
+        - DEPOSITED
+        - PAYMENT_EXECUTED
+        - SETTLED_FULL_AMOUNT
+        - SETTLED_PARTIAL_AMOUNT
+        - QUOTE_EXPIRED
+        - FAILED
+      example: QUOTE_ACCEPTED
+
+    AvailablePair:
+      type: object
+      properties:
+        fromAsset:
+          type: string
+          example: USDT
+        toAsset:
+          type: string
+          example: AED
+        fromAssetMinAmount:
+          type: number
+          minimum: 0
+          example: 10
+        fromAssetMaxAmount:
+          type: number
+          minimum: 0
+          example: 2000000
+        toAssetMinAmount:
+          type: number
+          minimum: 0
+          example: 1
+        toAssetMaxAmount:
+          type: number
+          minimum: 0
+          example: 2000000
+      required: [fromAsset, toAsset, fromAssetMinAmount, fromAssetMaxAmount, toAssetMinAmount, toAssetMaxAmount]
+
+    AssetInfo:
+      type: object
+      properties:
+        key:
+          type: string
+          example: USDT
+        name:
+          type: string
+          example: Tether USD
+        decimal:
+          type: integer
+          example: 6
+        chainId:
+          type: string
+          example: "1"
+        symbol:
+          type: string
+          example: USDT
+        chainName:
+          type: string
+          example: ethereum
+      required: [key, name, decimal, chainId, symbol, chainName]
+
+    GetQuoteRequest:
+      type: object
+      description: Provide either `fromAmount` or `toAmount`; the other will be derived.
+      properties:
+        fromAsset:
+          type: string
+          example: USDT
+        toAsset:
+          type: string
+          example: AED
+        fromAmount:
+          type: string
+          description: Crypto amount the payer will send. Provide this or toAmount.
+          example: "272.48"
+        toAmount:
+          type: string
+          description: Fiat amount the merchant expects to receive. Provide this or fromAmount.
+          example: "1000.00"
+      required: [fromAsset, toAsset]
+
+    GetQuoteResponse:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        fromAmount:
+          type: string
+          description: Crypto amount the payer must send
+          example: "272.48"
+        toAmount:
+          type: string
+          description: Fiat amount the client will receive
+          example: "1000.00"
+        ratio:
+          type: string
+          description: Exchange rate (toAsset per fromAsset)
+          example: "3.6700"
+        inverseRatio:
+          type: string
+          description: Inverse exchange rate (fromAsset per toAsset)
+          example: "0.27248"
+        validTimestamp:
+          type: integer
+          format: int64
+          description: Quote expiry time (Unix ms)
+          example: 1741124356789
+      required: [quoteId, fromAmount, toAmount, ratio, inverseRatio, validTimestamp]
+
+    AcceptQuoteRequest:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          description: Quote ID from getQuote
+          example: 73797374-656d-4000-8000-00008badf00d
+        chainId:
+          type: string
+          description: Chain ID for the deposit (e.g. "1" for Ethereum mainnet)
+          example: "1"
+        depositAddress:
+          type: string
+          description: |
+            Optional. Deposit address to reuse from a prior quote.
+            If provided, the system validates ownership and activates this address
+            with a new expiry window. If omitted, a new deposit address is assigned.
+            Pass the `depositAddress` from a previous `SETTLED_PARTIAL_AMOUNT` flow
+            so the payer can send the outstanding balance to the same address.
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+      required: [quoteId, chainId]
+
+    AcceptQuoteResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+          description: Unique identifier for tracking this payment order
+          example: 73797374-656d-4000-0000-00008badf00d
+        createTime:
+          type: integer
+          format: int64
+          description: Order creation time (Unix ms)
+          example: 1741123456789
+        depositAddress:
+          type: string
+          description: On-chain address to which the payer sends crypto
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        depositChain:
+          type: string
+          description: Chain ID for the deposit address
+          example: "1"
+        orderStatus:
+          $ref: "#/components/schemas/OrderStatus"
+      required: [paymentId, createTime, depositAddress, depositChain, orderStatus]
+
+    DepositTransaction:
+      type: object
+      properties:
+        chainId:
+          type: string
+          example: "1"
+        txHash:
+          type: string
+          example: "0x7c8a9b3f4e5d6c2a1b9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6"
+        amount:
+          type: string
+          description: Crypto amount received in this deposit
+          example: "258.86"
+        completedAt:
+          type: integer
+          format: int64
+          example: 1741123456789
+        status:
+          type: string
+          example: COMPLETED
+        from:
+          type: string
+          example: "0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE"
+        to:
+          type: string
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        phishingDetection:
+          type: object
+          properties:
+            isPhishing:
+              type: boolean
+              example: false
+            fraudAddress:
+              type: string
+            similarAddress:
+              type: string
+            similarityScore:
+              type: number
+              example: 0.0
+          required: [isPhishing]
+      required: [chainId, txHash, amount, status, phishingDetection]
+
+    SettlementTransaction:
+      type: object
+      properties:
+        txId:
+          type: string
+          example: stl_abc123xyz456
+        amount:
+          type: string
+          description: Fiat amount delivered in this settlement
+          example: "950.00"
+        completedAt:
+          type: integer
+          format: int64
+          example: 1741123456789
+        status:
+          type: string
+          example: COMPLETED
+      required: [txId, amount, status]
+
+    PaymentStatusResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-0000-00008badf00d
+        quoteId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        orderStatus:
+          $ref: "#/components/schemas/OrderStatus"
+        fromAsset:
+          type: string
+          example: USDT
+        fromAmount:
+          type: string
+          description: Total quoted crypto amount
+          example: "272.48"
+        toAsset:
+          type: string
+          example: AED
+        toAmount:
+          type: string
+          description: Total quoted fiat amount
+          example: "1000.00"
+        ratio:
+          type: string
+          example: "3.6700"
+        inverseRatio:
+          type: string
+          example: "0.27248"
+        depositAddress:
+          type: string
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        depositChain:
+          type: string
+          example: "1"
+        depositChainName:
+          type: string
+          example: ethereum
+        validUntil:
+          type: integer
+          format: int64
+          description: Quote expiry time (Unix ms)
+          example: 1741124356789
+        createTime:
+          type: integer
+          format: int64
+          example: 1741123456789
+        depositCompletedAt:
+          type: integer
+          format: int64
+          description: Time the final deposit was confirmed (Unix ms)
+          example: 1741123986789
+        clientId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        enterpriseId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        outstandingFromAmount:
+          type: string
+          description: |
+            Remaining fiat outstanding at the original quoted rate.
+            Non-zero after a `SETTLED_PARTIAL_AMOUNT` event. Use with `outstandingToAmount`
+            to create a follow-up quote for the outstanding balance.
+          example: "50.00"
+        outstandingToAmount:
+          type: string
+          description: |
+            Crypto still needed to cover the outstanding fiat balance, calculated
+            at the original quoted rate. Use as the `fromAmount` in a new getQuote call.
+          example: "13.62"
+        isRefundable:
+          type: boolean
+          description: Whether this trade has an overpayment available for refund
+          example: false
+        refundableAmount:
+          type: string
+          description: |
+            Excess crypto received above the quoted amount.
+            When > 0, use the standard withdrawal API to refund the payer.
+          example: "0.00"
+        executedPaymentAmount:
+          type: string
+          description: Fiat amount executed and settled so far; useful for partial payment tracking
+          example: "950.00"
+        depositTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepositTransaction"
+        settlementTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementTransaction"
+      required:
+        - paymentId
+        - quoteId
+        - orderStatus
+        - fromAsset
+        - fromAmount
+        - toAsset
+        - toAmount
+        - ratio
+        - inverseRatio
+        - depositAddress
+        - depositChain
+        - depositChainName
+        - validUntil
+        - createTime
+        - depositTransactions
+        - settlementTransactions
+
+    PaymentHistoryResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentStatusResponse"
+          description: Payment records in the requested time range
+        startTime:
+          type: integer
+          format: int64
+          example: 1732752000000
+        endTime:
+          type: integer
+          format: int64
+          example: 1740614400000
+        limit:
+          type: integer
+          example: 100
+        moreData:
+          type: boolean
+          description: True if additional records exist beyond this page
+          example: false
+      required: [list, startTime, endTime, limit, moreData]
+
+    WebhookPayload:
+      type: object
+      description: |
+        Webhook events delivered to the client's registered callback URL.
+
+        **Events and key fields:**
+
+        | Event | Change | Key fields |
+        |---|---|---|
+        | `QUOTE_ACCEPTED` | Unchanged | `paymentId`, `quoteId` |
+        | `DEPOSIT_PARTIAL_AMOUNT` | Enhanced | + `outstandingFromAmount`, `outstandingToAmount` |
+        | `DEPOSIT_FULL_AMOUNT_COMPLETED` | Enhanced | + `refundableAmount` |
+        | `QUOTE_EXPIRED` | Enhanced | + `outstandingFromAmount`, `outstandingToAmount` |
+        | `PAYMENT_EXECUTED` | **New** | `executedFromAmount`, `executedToAmount`, `executedRate`, `outstandingFromAmount`, `outstandingToAmount` |
+        | `SETTLED_PARTIAL_AMOUNT` | **New** | `fiatSettled`, `outstandingFromAmount`, `outstandingToAmount` |
+        | `SETTLED_FULL_AMOUNT` | Unchanged | — |
+        | `FAILED` | Unchanged | — |
+      properties:
+        event:
+          type: string
+          enum:
+            - QUOTE_ACCEPTED
+            - DEPOSIT_PARTIAL_AMOUNT
+            - DEPOSIT_FULL_AMOUNT_COMPLETED
+            - QUOTE_EXPIRED
+            - PAYMENT_EXECUTED
+            - SETTLED_PARTIAL_AMOUNT
+            - SETTLED_FULL_AMOUNT
+            - FAILED
+          example: DEPOSIT_PARTIAL_AMOUNT
+        paymentId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-0000-00008badf00d
+        clientOrderId:
+          type: string
+          description: Client-defined order reference (optional)
+          example: hubpay-order-9876
+        depositedFromAmount:
+          type: string
+          description: Crypto received in this deposit event (DEPOSIT_* events)
+          example: "258.86"
+        executedFromAmount:
+          type: string
+          description: |
+            Crypto amount converted at execution.
+            Present on: PAYMENT_EXECUTED.
+          example: "258.86"
+        executedToAmount:
+          type: string
+          description: |
+            Fiat amount confirmed for settlement.
+            Present on: PAYMENT_EXECUTED.
+          example: "950.00"
+        executedRate:
+          type: string
+          description: |
+            Rate used for execution (equals original quoted rate for partial-deposit path).
+            Present on: PAYMENT_EXECUTED.
+          example: "3.6700"
+        outstandingFromAmount:
+          type: string
+          description: |
+            Remaining fiat outstanding at original quoted rate.
+            Present on: DEPOSIT_PARTIAL_AMOUNT, QUOTE_EXPIRED, PAYMENT_EXECUTED, SETTLED_PARTIAL_AMOUNT.
+          example: "50.00"
+        outstandingToAmount:
+          type: string
+          description: |
+            Crypto still needed at original quoted rate.
+            Present on: DEPOSIT_PARTIAL_AMOUNT, QUOTE_EXPIRED, PAYMENT_EXECUTED, SETTLED_PARTIAL_AMOUNT.
+          example: "13.62"
+        refundableAmount:
+          type: string
+          description: |
+            Excess crypto available for refund (0 if none).
+            Present on: DEPOSIT_FULL_AMOUNT_COMPLETED.
+          example: "0.00"
+        fiatSettled:
+          type: string
+          description: |
+            Partial fiat amount delivered to the client.
+            Present on: SETTLED_PARTIAL_AMOUNT.
+          example: "950.00"
+      required: [event, paymentId]
