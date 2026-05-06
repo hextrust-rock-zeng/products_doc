@@ -122,7 +122,7 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 
 <!-- EXPIRY BANNER -->
 <rect x="0" y="862" width="1100" height="26" fill="#3b1f00"/>
-<text x="550" y="879" text-anchor="middle" fill="#fb923c" font-size="12" font-weight="bold">⏰  QUOTE EXPIRES  —  conversion executes at original quoted rate immediately</text>
+<text x="550" y="879" text-anchor="middle" fill="#fb923c" font-size="12" font-weight="bold">⏰  QUOTE EXPIRES  —  conversion executes at original quoted rate (~1-2 min buffer for in-flight deposits)</text>
 
 <!-- HexTrust → HubPay: QUOTE_EXPIRED -->
 <text x="461" y="912" text-anchor="middle" fill="#c4b5fd" font-size="11">⚡ webhook: QUOTE_EXPIRED</text>
@@ -197,7 +197,7 @@ p.sub{text-align:center;color:#64748b;font-size:13px;margin:0 0 14px}
 <!-- ================================================================ -->
 <rect x="5" y="1558" width="1090" height="58" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
 <text x="20" y="1577" fill="#94a3b8" font-size="11" font-weight="bold">Webhook events (⚡ purple dashed):</text>
-<text x="20" y="1595" fill="#c4b5fd" font-size="10.5">DEPOSIT_PARTIAL_AMOUNT  ·  DEPOSIT_FULL_AMOUNT_COMPLETED  ·  QUOTE_EXPIRED  ·  SETTLED_FULL_AMOUNT  ·  SETTLED_PARTIAL_AMOUNT</text>
+<text x="20" y="1595" fill="#c4b5fd" font-size="10.5">DEPOSIT_PARTIAL_AMOUNT  ·  DEPOSIT_FULL_AMOUNT_COMPLETED  ·  PAYMENT_EXECUTED  ·  QUOTE_EXPIRED  ·  SETTLED_FULL_AMOUNT  ·  SETTLED_PARTIAL_AMOUNT</text>
 <line x1="730" y1="1575" x2="760" y2="1575" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#awh)"/>
 <text x="765" y="1578" fill="#c4b5fd" font-size="10.5">push webhook</text>
 <line x1="870" y1="1575" x2="900" y2="1575" stroke="#60a5fa" stroke-width="2" marker-end="url(#ab)"/>
