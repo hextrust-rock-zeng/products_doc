@@ -55,14 +55,14 @@ The "Initiate Fiat Settlement" action is only available when the bank API can ha
 
 | Client bank account data | Transfer method | API eligible |
 |---|---|---|
-| Routing number present, no swift code | Flat wire / routing number | Yes |
-| Routing number present, swift code is US | Flat wire / routing number | Yes |
+| Routing number present, no swift code | Fedwire / routing number | Yes |
+| Routing number present, swift code is US | Fedwire / routing number | Yes |
 | Routing number present, swift code is non-US | SWIFT + Standard Chartered intermediary | Yes |
 | No routing number, swift code is non-US | SWIFT + Standard Chartered intermediary | Yes |
 | No routing number, swift code is US | Manual — missing data | No |
 | No routing number, no swift code | Manual — missing data | No |
 
-> When routing via intermediary bank, always use **Standard Chartered Bank** as the intermediary. Ignore any intermediary bank accounts configured on the client's bank account record.
+> When routing via intermediary bank, always use **Standard Chartered Bank** as the intermediary, identified by its **Fedwire number** (not SWIFT code) — since BCB is a US bank and the first hop is a domestic Fedwire transfer to Standard Chartered's US correspondent account. Ignore any intermediary bank accounts configured on the client's bank account record.
 
 **All other banks:** always manual flow.
 
@@ -217,8 +217,8 @@ Bank transaction IDs returned from Zand / BCB are stored and visible in the trad
 On the initiation review screen, display which fields will be used for the transfer so the operator can verify before submitting. For example:
 
 - "Transfer via: SWIFT + Standard Chartered intermediary"
-- Fields: IBAN, SWIFT code, intermediary BIC
-- Or: "Transfer via: Flat wire / routing number"
+- Fields: IBAN, SWIFT code, intermediary Fedwire number
+- Or: "Transfer via: Fedwire / routing number"
 - Fields: Routing number, account number
 
 ---
