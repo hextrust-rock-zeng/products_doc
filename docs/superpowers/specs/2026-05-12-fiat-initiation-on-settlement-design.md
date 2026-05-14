@@ -1,7 +1,7 @@
 # Fiat Initiation on Trade Settlement — Requirements Spec
 
 **Date:** 2026-05-12
-**Status:** Draft — awaiting review
+**Status:** Under Dev Review
 **Author:** rock.zeng
 
 ---
