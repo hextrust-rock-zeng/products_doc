@@ -38,7 +38,7 @@ This feature adds fiat transfer initiation and incoming transaction detection di
 
 ## 3. Use Cases
 
-**Delivery priority order:** UC5 (House-to-House) > UC1 (CL2) > UC2 (ML1) > UC3 (CL1) = UC4 (ML2)
+**Delivery priority order:** UC1 (CL2) > UC2 (ML1) > UC5 (House-to-House) > UC3 (CL1) = UC4 (ML2)
 
 ---
 
@@ -170,7 +170,7 @@ Identical to UC3, with the following differences:
 
 ### 3.5 UC5 — House-to-House Bank Transfer
 
-**Priority: highest — deliver before UC1–UC4.**
+**Priority: after UC1 and UC2, before UC3 and UC4.**
 
 **Context:** Ops sometimes needs to move funds between Hex's own bank accounts (e.g., from client settlement account to market settlement account to cover a position).
 
