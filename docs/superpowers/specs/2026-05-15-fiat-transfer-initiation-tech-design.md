@@ -25,7 +25,13 @@ Three repos already form the bank integration stack:
 
 ```
 HexAdmin UI
+    │  JRPC (admin_Htm_* methods)
+    ▼
+hexsafe-2-hexadmin-api-gateway     ← routes admin_* prefix to hexadmin-api
     │  JRPC
+    ▼
+hexsafe-2-hexadmin-api             ← BFF; handles auth, validation, calls downstream
+    │  JRPC (htm_hse client)
     ▼
 htm-htm-settlement-engine          ← owns fiat leg state machine
     │  bank_InitiateTransfer (JRPC)
@@ -43,7 +49,8 @@ Zand adaptor         BCB adaptor
 htm-htm-settlement-engine          ← consumes to update fiat leg status
 ```
 
-- **`htm-htm-settlement-engine`** owns the fiat leg state machine; calls `bank_InitiateTransfer` for outgoing transfers; consumes `bank-deposit` / `bank-withdrawal` Kafka events to track status; integrates with quorum approval for maker-checker
+- **`hexsafe-2-hexadmin-api`** is the BFF layer sitting between HexAdmin UI and all downstream services; all `admin_Htm_*` JRPC methods are registered here and forwarded to the settlement engine via the `htm_hse` client package
+- **`htm-htm-settlement-engine`** owns the fiat leg state machine; calls `bank_InitiateTransfer` for outgoing transfers; consumes `bank-deposit` / `bank-withdrawal` Kafka events to track status; integrates with `custody-authz-service` for maker-checker approval
 - **`hexsafe-2-bank-gateway`** needs BCB routing added (currently only Zand is wired in); routing decision (Fedwire vs SWIFT+intermediary) is determined here based on beneficiary bank account data
 - **`hexsafe-2-bcb-bank-adaptor`** — the BCB API `intermediary_bank` object supports both `bic` and `routing_number`; for USD SWIFT transfers routed via Standard Chartered, pass Standard Chartered's Fedwire/ABA number in `routing_number`
 - **`HexAdmin UI`** adds the initiation screens, Fiat Transfers sub-tab under Pending Requests, and incoming transaction matching UI
@@ -109,6 +116,7 @@ sequenceDiagram
     actor Maker as Operator Maker
     actor Checker as Operator Checker
     participant UI as HexAdmin UI
+    participant API as hexadmin-api
     participant SE as htm-settlement-engine
     participant CA as custody-authz-service
     participant Mobile as HexSafe Mobile
@@ -117,28 +125,35 @@ sequenceDiagram
     participant Bank as Zand or BCB Bank
 
     Maker->>UI: Open CL2 / ML1 / Internal Transfer screen
-    UI->>SE: Fetch trade and account data
-    SE-->>UI: Trade details, eligibility flag isFiatTransferAvailable
+    UI->>API: JRPC admin_Htm_GetTradeSettlementInfo
+    API->>SE: Fetch trade and account data
+    SE-->>API: Trade details, eligibility flag isFiatTransferAvailable
+    API-->>UI: Trade details, eligibility flag isFiatTransferAvailable
     UI-->>Maker: Show Initiate Fiat Settlement if eligible, or ineligibility reason
 
     Maker->>UI: Click Initiate Fiat Settlement
     UI-->>Maker: Review screen — From, To, amount, transfer method
 
     Maker->>UI: Submit
-    UI->>SE: InitiateFiatTransfer(tradeId, fromAccount, toAccount, amount, currency, method)
+    UI->>API: JRPC admin_Htm_InitiateFiatTransfer(tradeId, fromAccount, toAccount, amount, currency, method)
+    API->>SE: InitiateFiatTransfer(tradeId, fromAccount, toAccount, amount, currency, method)
     SE->>SE: Validate and set status to PENDING_APPROVAL
     SE->>CA: CreateFiatTransferApproval(tradeId, transferDetails)
     CA-->>SE: approvalRequestId
-    SE-->>UI: OK, status Pending Approval
+    SE-->>API: OK, status Pending Approval
+    API-->>UI: OK, status Pending Approval
     UI-->>Maker: Awaiting checker approval
 
     Checker->>UI: Open Pending Requests, Fiat Transfers sub-tab
-    UI->>CA: ListPendingFiatTransfers
-    CA-->>UI: Pending transfer details
+    UI->>API: JRPC admin_Htm_ListPendingFiatTransfers
+    API->>CA: ListPendingFiatTransfers
+    CA-->>API: Pending transfer details
+    API-->>UI: Pending transfer details
     UI-->>Checker: Review transfer details
 
     Checker->>UI: Click Approve
-    UI->>CA: ApproveFiatTransfer(approvalRequestId)
+    UI->>API: JRPC admin_Htm_ApproveFiatTransfer(approvalRequestId)
+    API->>CA: ApproveFiatTransfer(approvalRequestId)
     CA->>Mobile: Send mobile approval request to checker
     Note over Mobile: Fiat Transfer Initiation template<br/>Trade ID or Transfer Ref, Amount<br/>From and To account details<br/>Initiated by maker name and timestamp
 
