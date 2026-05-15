@@ -102,13 +102,15 @@ UNSETTLED
 
 ## 2. Sequence Diagram — Fiat Initiation Flow (UC1 / UC2 / UC5)
 
+> **Open item:** How does the front-end know whether to enable the Initiate Fiat Settlement button? The settlement engine should return an eligibility flag (e.g. `isFiatTransferAvailable`) per trade. Needs confirmation from Dmitry and Hao.
+
 ```mermaid
 sequenceDiagram
     actor Maker as Operator Maker
     actor Checker as Operator Checker
     participant UI as HexAdmin UI
     participant SE as htm-settlement-engine
-    participant QA as Quorum Approval
+    participant CA as custody-authz-service
     participant Mobile as HexSafe Mobile
     participant GW as bank-gateway
     participant Adaptor as Zand or BCB Adaptor
@@ -116,7 +118,7 @@ sequenceDiagram
 
     Maker->>UI: Open CL2 / ML1 / Internal Transfer screen
     UI->>SE: Fetch trade and account data
-    SE-->>UI: Trade details and eligibility info
+    SE-->>UI: Trade details, eligibility flag isFiatTransferAvailable
     UI-->>Maker: Show Initiate Fiat Settlement if eligible, or ineligibility reason
 
     Maker->>UI: Click Initiate Fiat Settlement
@@ -125,22 +127,24 @@ sequenceDiagram
     Maker->>UI: Submit
     UI->>SE: InitiateFiatTransfer(tradeId, fromAccount, toAccount, amount, currency, method)
     SE->>SE: Validate and set status to PENDING_APPROVAL
-    SE->>QA: Create approval request, type FiatTransfer
-    QA-->>SE: approvalRequestId
+    SE->>CA: CreateFiatTransferApproval(tradeId, transferDetails)
+    CA-->>SE: approvalRequestId
     SE-->>UI: OK, status Pending Approval
     UI-->>Maker: Awaiting checker approval
 
-    QA->>Mobile: Push notification — Fiat Transfer Initiation template
-    Note over Mobile: Multi-page swipeable card<br/>Trade ID or Transfer Ref, Amount<br/>From and To account details<br/>Initiated by maker name and timestamp
-
     Checker->>UI: Open Pending Requests, Fiat Transfers sub-tab
-    UI->>SE: List pending fiat transfers
-    SE-->>UI: Transfer details
+    UI->>CA: ListPendingFiatTransfers
+    CA-->>UI: Pending transfer details
     UI-->>Checker: Review transfer details
 
-    Checker->>Mobile: Confirm approval on HexSafe mobile app
-    Mobile->>QA: Approval confirmed
-    QA->>SE: Kafka: quorum-approval-for-admin APPROVED
+    Checker->>UI: Click Approve
+    UI->>CA: ApproveFiatTransfer(approvalRequestId)
+    CA->>Mobile: Send mobile approval request to checker
+    Note over Mobile: Fiat Transfer Initiation template<br/>Trade ID or Transfer Ref, Amount<br/>From and To account details<br/>Initiated by maker name and timestamp
+
+    Checker->>Mobile: Approve on HexSafe mobile app
+    Mobile->>CA: Approval confirmed
+    CA->>SE: Kafka: quorum-approval-for-fiat-transfer APPROVED
 
     SE->>SE: Set status to INITIATED
     SE->>GW: bank_InitiateTransfer(bankId, fromAccount, toAccount, amount, method, intermediary)
@@ -156,7 +160,8 @@ sequenceDiagram
     SE->>SE: Consume bank-withdrawal event
     SE->>SE: Set status to FIAT_SETTLED, record bank tx ID and value date
 
-    Note over SE: On checker rejection
+    Note over CA,SE: On checker rejection in HexAdmin
+    CA->>SE: Kafka: quorum-approval-for-fiat-transfer REJECTED
     SE->>SE: Set status to UNSETTLED
     SE->>SE: Send Slack notification to ops and trading team
 
