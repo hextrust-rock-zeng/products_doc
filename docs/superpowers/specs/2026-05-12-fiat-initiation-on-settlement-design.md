@@ -1,7 +1,7 @@
-# Fiat Initiation on Trade Settlement — Requirements Spec
+# Fiat Transfer Initiation — Requirements Spec
 
 **Date:** 2026-05-12
-**Status:** Draft — awaiting review
+**Status:** Under Dev Review
 **Author:** rock.zeng
 
 ---
@@ -66,7 +66,7 @@ The "Initiate Fiat Settlement" action is available when the bank API can handle 
 | No routing number, swift code is US | Manual — missing data | No |
 | No routing number, no swift code | Manual — missing data | No |
 
-> When routing via intermediary bank, always use **Standard Chartered Bank** as the intermediary, identified by its **Fedwire number** (not SWIFT code) — since BCB is a US bank and the first hop is a domestic Fedwire transfer to Standard Chartered's US correspondent account. Ignore any intermediary bank accounts configured on the client's bank account record.
+> When routing via intermediary bank, always use **Standard Chartered Bank** as the intermediary. The BCB API `intermediary_bank` object supports both a `bic` field and a `routing_number` field (valid for USD SWIFT transfers only). Pass Standard Chartered's **Fedwire/ABA routing number** in the `routing_number` field — since BCB is a US bank, the first hop is a domestic Fedwire transfer to Standard Chartered's US correspondent account. Ignore any intermediary bank accounts configured on the client's bank account record.
 
 **All other banks:** always manual flow only.
 
@@ -122,12 +122,11 @@ Identical to UC1 in flow, eligibility rules, approval flow, failure handling, an
 
 **Trigger:** A trade is awaiting receipt of fiat from the client (e.g., client buying crypto with fiat).
 
-#### 3.3.1 Statement polling
+#### 3.3.1 Incoming transaction detection
 
-- The system periodically polls Zand and BCB bank APIs to retrieve incoming transactions on Hex's settlement accounts
-- Default polling interval: **10 minutes** (configurable)
-- Retrieved transactions are stored internally
-- Each fetched transaction records: bank reference, amount, currency, value date, sender name, sender account number
+Both Zand and BCB push webhooks for **all** incoming transactions on Hex's settlement accounts (not only ones we initiated). The Zand and BCB adaptors consume these webhooks and publish to the `bank-deposit` Kafka topic. The settlement engine consumes this topic to detect and store incoming transactions — **no polling job is needed**.
+
+Each stored transaction records: bank reference, amount, currency, value date, sender name, sender account number.
 
 #### 3.3.2 Flow
 
@@ -162,7 +161,7 @@ Incoming transactions not matched to any trade remain visible in a dedicated **U
 
 Identical to UC3, with the following differences:
 
-- Polling targets Hex's **market** settlement bank accounts
+- Webhook events target Hex's **market** settlement bank accounts
 - Inline transaction list appears on the **Market Leg 2** settlement screen
 - Matched against LP's expected payment instead of client's
 
@@ -201,18 +200,138 @@ Available house bank accounts are sourced from bank accounts configured on **Hou
 
 ---
 
-## 4. Cross-Cutting Requirements
+## 4. Architecture
 
-### 4.1 Approval — Two-Step: HexAdmin Review + HexSafe Mobile Confirm
+### 4.1 Existing Bank Integration Layer
+
+Three repos already form the bank integration stack:
+
+| Repo | Role |
+|---|---|
+| `hexsafe-2-bank-gateway` | Central JRPC gateway; exposes `bank_InitiateTransfer`; routes to Zand or BCB adaptor |
+| `hexsafe-2-zand-bank-adaptor` | Zand Bank API client; handles domestic + international transfers; publishes to `bank-deposit` / `bank-withdrawal` Kafka topics via webhooks |
+| `hexsafe-2-bcb-bank-adaptor` | BCB Bank API client; exposes `bcb_bank_AuthorizePayment`; publishes to `bank-deposit` / `bank-withdrawal` Kafka topics via webhooks |
+
+The `htm-settlement-engine` is already an allowed client of both adaptors.
+
+### 4.2 Component Responsibilities for This Feature
+
+```
+HexAdmin UI
+    ↓ JRPC
+htm-settlement-engine       ← owns fiat leg state machine
+    ↓ bank_InitiateTransfer (JRPC)
+hexsafe-2-bank-gateway      ← routes by bank identifier (Zand / BCB)
+    ↓                            ↓
+Zand adaptor              BCB adaptor
+    ↓ webhook                    ↓ webhook
+         bank-deposit / bank-withdrawal Kafka topics
+                    ↓
+          htm-settlement-engine  ← consumes to update fiat leg status
+```
+
+- **`htm-settlement-engine`** owns the fiat leg state machine, calls `bank_InitiateTransfer` for outgoing transfers, and consumes `bank-deposit` / `bank-withdrawal` Kafka events to track status
+- **`hexsafe-2-bank-gateway`** requires BCB routing to be added (currently only Zand is wired in); BCB API endpoint is `POST https://api.bcb.group/v5/payments/authorise`
+- **`hexsafe-2-bcb-bank-adaptor`** intermediary bank field confirmed: the BCB API `intermediary_bank` object supports both `bic` and `routing_number`; pass Standard Chartered's Fedwire/ABA number in `routing_number`
+- **HexAdmin UI** adds the initiation screens, Fiat Transfers sub-tab, and incoming transaction matching UI
+
+### 4.3 Incoming Transaction Detection (UC3 / UC4)
+
+Both Zand and BCB push webhooks for **all** incoming transactions on Hex's settlement accounts — not only ones initiated through our API. No polling job is needed. The settlement engine consumes the `bank-deposit` Kafka topic published by both adaptors.
+
+### 4.4 Fiat Leg State Machine
+
+Fiat legs extend the existing `SettlementStatus` enum in `htm-htm-settlement-engine/internal/constant/status.go` with minimal new states. Existing terminal states (`INCOMING_CLIENT_LEG_SETTLED`, `OUTGOING_LP_LEG_SETTLED`, etc.) are reused.
+
+**New states to add:**
+
+| New state | Used by |
+|---|---|
+| `INCOMING_CLIENT_LEG_FIAT_PENDING_APPROVAL` | CL2: awaiting checker approval before bank transfer |
+| `OUTGOING_LP_LEG_FIAT_PENDING_APPROVAL` | ML1: awaiting checker approval before bank transfer |
+| `FIAT_TRANSFER_FAILED` | CL2, ML1, UC5: terminal failure after retries exhausted |
+
+**State transitions:**
+
+*CL2 — Outgoing fiat (Hex pays client):*
+```
+UNSETTLED
+  → INCOMING_CLIENT_LEG_FIAT_PENDING_APPROVAL   (maker submits)
+  → INCOMING_CLIENT_LEG_INITIATED               (reuse: bank transfer submitted after approval)
+  → INCOMING_CLIENT_LEG_SETTLED                 (reuse: bank confirms)
+  → FIAT_TRANSFER_FAILED                        (new: retries exhausted)
+  → UNSETTLED                                   (on rejection or cancellation)
+```
+
+*ML1 — Outgoing fiat (Hex pays LP):*
+```
+UNSETTLED
+  → OUTGOING_LP_LEG_FIAT_PENDING_APPROVAL       (maker submits)
+  → OUTGOING_LP_LEG_INITIATED                   (reuse: bank transfer submitted after approval)
+  → OUTGOING_LP_LEG_SETTLED                     (reuse: bank confirms)
+  → FIAT_TRANSFER_FAILED                        (new: retries exhausted)
+  → UNSETTLED                                   (on rejection or cancellation)
+```
+
+*CL1 — Incoming fiat (client pays Hex, ops confirms):*
+```
+UNSETTLED
+  → OUTGOING_CLIENT_LEG_SETTLED                 (reuse: ops selects matching bank-deposit transactions)
+```
+
+*ML2 — Incoming fiat (LP pays Hex, ops confirms):*
+```
+UNSETTLED
+  → INCOMING_LP_LEG_SETTLED                     (reuse: ops selects matching bank-deposit transactions)
+```
+
+---
+
+## 5. Cross-Cutting Requirements
+
+### 5.1 Approval — Two-Step: HexAdmin Review + HexSafe Mobile Confirm
 
 All outgoing transfer initiations (UC1, UC2, UC5) follow the same two-step approval flow:
 
 1. **Maker** submits the transfer in HexAdmin → request appears in the **"Fiat Transfers"** sub-tab under the existing **Pending Requests** tab
 2. **Checker** reviews the full transfer details (from/to accounts, amount, currency, transfer method) in the Fiat Transfers sub-tab in HexAdmin
-3. **Checker** confirms the approval on the **HexSafe mobile app** — a new mobile notification template for fiat transfers must be created as part of this feature
+3. **Checker** confirms the approval on the **HexSafe mobile app** using the existing **"Fiat Transfer Initiation"** template (see below)
 4. Maker cannot approve their own submission
 
-### 4.2 Audit Trail
+**Roles:** Both **Operator** and **Operator Manager** can act as maker or checker. The only constraint is that the same person cannot approve their own submission.
+
+#### Mobile approval template
+
+The existing **"Fiat Transfer Initiation"** template is reused. It is a multi-page swipeable card with a 5-minute countdown timer and Cancel / Confirm actions.
+
+**Fields displayed for UC1 / UC2 (trade-linked transfers):**
+
+| Field | Value |
+|---|---|
+| Trade ID | Trade ID (e.g., OTC-20251107-0089) |
+| Ticker | Settlement currency |
+| Amount | Settlement amount |
+| Counterparty Name | Client or LP name |
+| From Bank | Hex's settlement bank name |
+| From Account Holder Name | Hex's account holder name |
+| From Routing Number | Routing number (if applicable) |
+| From Account Number / IBAN | Account number or IBAN |
+| From SWIFT Code | SWIFT code (if applicable) |
+| To Bank | Client's / LP's bank name |
+| To Account Holder Name | Client's / LP's account holder name |
+| To Routing Number | Routing number (if applicable) |
+| To Account Number / IBAN | Account number or IBAN |
+| To SWIFT Code | SWIFT code (if applicable) |
+| Transaction ID | **Hidden / not shown** — transfer has not been submitted to the bank yet at approval time |
+| Note | Payment reference derived from trade ID |
+| Initiated by | Maker's name |
+| Initiated at | Submission timestamp |
+
+**Fields for UC5 (house-to-house transfers):** same template with these adjustments:
+- Trade ID → replaced with **Transfer Reference** (internal reference ID)
+- Counterparty Name → not shown (both accounts are Hex house accounts)
+
+### 5.2 Audit Trail
 
 Every state transition on a fiat transfer is logged:
 
@@ -226,7 +345,7 @@ Every state transition on a fiat transfer is logged:
 
 Bank transaction IDs returned from Zand / BCB are stored and visible in the trade detail view.
 
-### 4.3 Notifications
+### 5.3 Notifications
 
 Slack notifications are sent to both the **ops team** and the **trading team** in the following events:
 
@@ -238,7 +357,7 @@ Slack notifications are sent to both the **ops team** and the **trading team** i
 
 No email notifications in scope for this release.
 
-### 4.4 Transfer Method Display (Optional / Nice-to-Have)
+### 5.4 Transfer Method Display (Optional / Nice-to-Have)
 
 On the initiation review screen, display which fields will be used for the transfer so the operator can verify before submitting. For example:
 
@@ -249,7 +368,7 @@ On the initiation review screen, display which fields will be used for the trans
 
 ---
 
-## 5. Out of Scope / Deferred
+## 6. Out of Scope / Deferred
 
 | Item | Reason |
 |---|---|
