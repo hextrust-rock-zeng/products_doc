@@ -104,66 +104,66 @@ UNSETTLED
 
 ```mermaid
 sequenceDiagram
-    actor Maker as Operator (Maker)
-    actor Checker as Operator (Checker)
+    actor Maker as Operator Maker
+    actor Checker as Operator Checker
     participant UI as HexAdmin UI
     participant SE as htm-settlement-engine
     participant QA as Quorum Approval
     participant Mobile as HexSafe Mobile
     participant GW as bank-gateway
-    participant Adaptor as Zand / BCB Adaptor
-    participant Bank as Bank (Zand / BCB)
+    participant Adaptor as Zand or BCB Adaptor
+    participant Bank as Zand or BCB Bank
 
     Maker->>UI: Open CL2 / ML1 / Internal Transfer screen
-    UI->>SE: Fetch trade / account data
-    SE-->>UI: Trade details + eligibility info
-    UI-->>Maker: Show "Initiate Fiat Settlement" (eligible) or ineligibility reason
+    UI->>SE: Fetch trade and account data
+    SE-->>UI: Trade details and eligibility info
+    UI-->>Maker: Show Initiate Fiat Settlement if eligible, or ineligibility reason
 
-    Maker->>UI: Click "Initiate Fiat Settlement"
-    UI-->>Maker: Review screen (From, To, amount, transfer method)
+    Maker->>UI: Click Initiate Fiat Settlement
+    UI-->>Maker: Review screen — From, To, amount, transfer method
 
     Maker->>UI: Submit
     UI->>SE: InitiateFiatTransfer(tradeId, fromAccount, toAccount, amount, currency, method)
-    SE->>SE: Validate + set status → PENDING_APPROVAL
-    SE->>QA: Create approval request (type: FiatTransfer)
+    SE->>SE: Validate and set status to PENDING_APPROVAL
+    SE->>QA: Create approval request, type FiatTransfer
     QA-->>SE: approvalRequestId
-    SE-->>UI: OK (status: Pending Approval)
-    UI-->>Maker: Confirmation — awaiting checker approval
+    SE-->>UI: OK, status Pending Approval
+    UI-->>Maker: Awaiting checker approval
 
-    QA->>Mobile: Push notification → "Fiat Transfer Initiation" template
-    Note over Mobile: Multi-page swipeable card<br/>Trade ID / Transfer Ref, Amount,<br/>From/To account details,<br/>Initiated by (Maker name + timestamp)
+    QA->>Mobile: Push notification — Fiat Transfer Initiation template
+    Note over Mobile: Multi-page swipeable card<br/>Trade ID or Transfer Ref, Amount<br/>From and To account details<br/>Initiated by maker name and timestamp
 
-    Checker->>UI: Open Pending Requests → Fiat Transfers sub-tab
+    Checker->>UI: Open Pending Requests, Fiat Transfers sub-tab
     UI->>SE: List pending fiat transfers
     SE-->>UI: Transfer details
     UI-->>Checker: Review transfer details
 
     Checker->>Mobile: Confirm approval on HexSafe mobile app
     Mobile->>QA: Approval confirmed
-    QA->>SE: Kafka: quorum-approval-for-admin (APPROVED)
+    QA->>SE: Kafka: quorum-approval-for-admin APPROVED
 
-    SE->>SE: Set status → INITIATED
-    SE->>GW: bank_InitiateTransfer(bankId, fromAccount, toAccount, amount, method, intermediary?)
+    SE->>SE: Set status to INITIATED
+    SE->>GW: bank_InitiateTransfer(bankId, fromAccount, toAccount, amount, method, intermediary)
     GW->>Adaptor: Route to Zand or BCB adaptor
-    Adaptor->>Bank: POST /transfer (Zand) or POST /v5/payments/authorise (BCB)
-    Bank-->>Adaptor: Transfer accepted (bank reference ID)
+    Adaptor->>Bank: POST transfer to bank API
+    Bank-->>Adaptor: Transfer accepted, bank reference ID
     Adaptor-->>GW: OK
-    GW-->>SE: OK (bankReferenceId)
-    SE->>SE: Record bankReferenceId, audit log
+    GW-->>SE: OK, bankReferenceId
+    SE->>SE: Record bankReferenceId and audit log
 
-    Bank->>Adaptor: Webhook: transfer completed (bank tx ID, value date)
+    Bank->>Adaptor: Webhook — transfer completed, bank tx ID and value date
     Adaptor->>Adaptor: Publish to bank-withdrawal Kafka topic
     SE->>SE: Consume bank-withdrawal event
-    SE->>SE: Set status → FIAT_SETTLED; record bank tx ID + value date
+    SE->>SE: Set status to FIAT_SETTLED, record bank tx ID and value date
 
-    Note over SE: On checker rejection:
-    SE->>SE: Set status → UNSETTLED
-    SE->>SE: Send Slack notification (ops + trading team)
+    Note over SE: On checker rejection
+    SE->>SE: Set status to UNSETTLED
+    SE->>SE: Send Slack notification to ops and trading team
 
-    Note over SE: On bank API failure (after approval):
-    SE->>SE: Auto-retry up to 3×, exponential backoff
-    SE->>SE: If all retries fail → status → FIAT_TRANSFER_FAILED
-    SE->>SE: Send Slack notification (ops + trading team)
+    Note over SE: On bank API failure after approval
+    SE->>SE: Auto-retry up to 3 times with exponential backoff
+    SE->>SE: If all retries fail, set status to FIAT_TRANSFER_FAILED
+    SE->>SE: Send Slack notification to ops and trading team
 ```
 
 ---
@@ -172,41 +172,41 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor Client as Client / LP
-    participant Bank as Bank (Zand / BCB)
-    participant Adaptor as Zand / BCB Adaptor
+    actor Client as Client or LP
+    participant Bank as Zand or BCB Bank
+    participant Adaptor as Zand or BCB Adaptor
     participant SE as htm-settlement-engine
     actor Operator as Operator
     participant UI as HexAdmin UI
 
-    Client->>Bank: Initiate fiat transfer to Hex's settlement account
+    Client->>Bank: Initiate fiat transfer to Hex settlement account
 
-    Bank->>Adaptor: Webhook: incoming transaction event<br/>(bankRef, amount, currency, valueDate, senderName, senderAccount)
+    Bank->>Adaptor: Webhook — incoming transaction event<br/>bankRef, amount, currency, valueDate, senderName, senderAccount
     Adaptor->>Adaptor: Publish to bank-deposit Kafka topic
 
     SE->>SE: Consume bank-deposit event
-    SE->>SE: Store incoming transaction<br/>(bankRef, amount, currency, valueDate, sender, usedAmount=0)
+    SE->>SE: Store incoming transaction<br/>bankRef, amount, currency, valueDate, sender, usedAmount=0
 
-    Operator->>UI: Open CL1 (Client Leg 1) or ML2 (Market Leg 2) settlement screen
-    UI->>SE: List pending trades + unmatched incoming transactions (filtered by currency)
-    SE-->>UI: Trades + candidate transactions
+    Operator->>UI: Open CL1 or ML2 settlement screen
+    UI->>SE: List pending trades and unmatched incoming transactions filtered by currency
+    SE-->>UI: Trades and candidate transactions
 
-    UI-->>Operator: Inline transaction list per trade<br/>(filtered by currency + approximate amount range)
+    UI-->>Operator: Inline transaction list per trade, filtered by currency and amount range
 
-    Operator->>UI: Select one or more transactions for a trade → "Confirm Settlement"
-    UI->>SE: ConfirmIncomingFiatSettlement(tradeId, leg, selectedTxIds[])
+    Operator->>UI: Select transactions for a trade and click Confirm Settlement
+    UI->>SE: ConfirmIncomingFiatSettlement(tradeId, leg, selectedTxIds)
 
-    SE->>SE: Validate: sum(selectedTx.amounts) ≥ trade.expectedAmount
-    alt Sum < expected amount
+    SE->>SE: Validate sum of selected amounts is >= expected trade amount
+    alt Sum less than expected amount
         SE-->>UI: Error — insufficient amount, wait for more transactions
-    else Sum ≥ expected amount
+    else Sum >= expected amount
         SE->>SE: Allocate smallest-to-largest<br/>Record usedAmount per transaction<br/>Remaining unused balance stays available
-        SE->>SE: Set trade leg status → FIAT_SETTLED<br/>Record bankRefs, amounts, valueDates
+        SE->>SE: Set trade leg status to FIAT_SETTLED<br/>Record bankRefs, amounts, valueDates
         SE-->>UI: OK
         UI-->>Operator: Trade marked as Fiat Settled
     end
 
-    Note over SE: No maker-checker required —<br/>incoming confirmation is a record action,<br/>not a fund movement
+    Note over SE: No maker-checker required<br/>Incoming confirmation is a record action<br/>not a fund movement
 ```
 
 ---
