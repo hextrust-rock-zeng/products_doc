@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HexSafe — Statements (mockup)</title>
+<style>
+  :root {
+    --navy-900: #0A2342;
+    --navy-800: #0F2A4D;
+    --navy-700: #1A3E66;
+    --navy-500: #1F6FB2;
+    --navy-300: #6B8FB8;
+    --navy-50:  #EEF2F7;
+    --grey-900: #1F2937;
+    --grey-700: #4A5568;
+    --grey-500: #6B7280;
+    --grey-300: #D0D5DD;
+    --grey-200: #E5E7EB;
+    --grey-100: #F5F7FA;
+    --grey-50:  #FAFBFC;
+    --green-600: #15803D;
+    --green-50:  #DCFCE7;
+    --amber-700: #B45309;
+    --amber-50:  #FEF3C7;
+    --red-700:   #B91C1C;
+    --shadow-sm: 0 1px 2px rgba(15,42,77,0.06);
+    --shadow-md: 0 4px 12px rgba(15,42,77,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--grey-900);
+    background: var(--grey-50);
+  }
+  button { font-family: inherit; }
+
+  /* ===== Top header ===== */
+  .topbar {
+    background: var(--navy-900);
+    color: #fff;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 18px;
+  }
+  .topbar .brand .logo {
+    width: 28px; height: 22px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .topbar .brand .logo .stripe {
+    height: 4px; background: #fff; border-radius: 1px;
+    clip-path: polygon(0 50%, 50% 0, 100% 50%, 100% 100%, 50% 50%, 0 100%);
+  }
+  .topbar .right { display: flex; align-items: center; gap: 16px; }
+  .topbar .btn {
+    background: rgba(255,255,255,0.10); color: #fff;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .topbar .avatar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+  }
+  .topbar .avatar .circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--navy-500); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+  }
+  .topbar .avatar .meta { line-height: 1.2; font-size: 12px; }
+  .topbar .avatar .meta .name { font-weight: 600; }
+  .topbar .avatar .meta .ent  { opacity: 0.75; font-size: 11px; }
+
+  /* ===== App shell ===== */
+  .app { display: grid; grid-template-columns: 64px 1fr; min-height: calc(100vh - 64px); }
+
+  /* ===== Left sidebar ===== */
+  .sidebar {
+    background: var(--navy-900);
+    padding: 16px 0;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px;
+  }
+  .sidebar .icon {
+    width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.55); cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .sidebar .icon:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .sidebar .icon.active {
+    background: var(--navy-500); color: #fff;
+    box-shadow: var(--shadow-md);
+  }
+  .sidebar .icon svg { width: 20px; height: 20px; }
+  .sidebar .spacer { flex: 1; }
+
+  /* ===== Content area ===== */
+  .content { padding: 0 32px 64px; max-width: 1400px; }
+
+  /* ===== Settings sub-tabs ===== */
+  .subtabs {
+    display: flex; align-items: center; gap: 0;
+    border-bottom: 1px solid var(--grey-200);
+    margin-bottom: 24px;
+    padding-top: 8px;
+    overflow-x: auto;
+  }
+  .subtab {
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--grey-500);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .subtab:hover { color: var(--navy-700); }
+  .subtab.active {
+    color: var(--navy-900);
+    font-weight: 600;
+    border-bottom-color: var(--navy-500);
+  }
+
+  /* ===== Mockup-only view switcher (small floating widget) ===== */
+  .demo-switch {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    background: var(--navy-900);
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 10px 6px 14px;
+    font-size: 12px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+  }
+  .demo-switch label { opacity: 0.75; }
+  .demo-switch select {
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.20);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+  .demo-switch select option { color: var(--grey-900); }
+
+  /* ===== Page head ===== */
+  .page-head h1 {
+    font-size: 24px; margin: 0 0 6px; color: var(--navy-900);
+    letter-spacing: -0.01em;
+  }
+  .page-head p { margin: 0 0 24px; color: var(--grey-500); }
+
+  /* ===== Filter bar ===== */
+  .filters {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff;
+    border: 1px solid var(--grey-200);
+    border-radius: 10px;
+    padding: 12px 16px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
+    flex-wrap: nowrap;
+  }
+  .filter-wrap { position: relative; }
+  .filter {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--grey-100);
+    border: 1px solid var(--grey-200);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px; color: var(--grey-700);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .filter .icon { display: flex; align-items: center; color: var(--grey-500); }
+  .filter .label { color: var(--grey-500); }
+  .filter strong { color: var(--navy-900); font-weight: 600; }
+  .filter .chev { font-size: 10px; color: var(--grey-500); }
+  .filter:hover { background: #fff; border-color: var(--navy-500); }
+  .filter.active { background: var(--navy-50); border-color: var(--navy-500); color: var(--navy-900); }
+  .filter.open { background: var(--navy-50); border-color: var(--navy-500); }
+
+  /* Dropdown panel */
+  .dropdown {
+    position: absolute;
+    top: calc(100% + 6px); left: 0;
+    background: #fff;
+    border: 1px solid var(--grey-200);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    min-width: 240px;
+    z-index: 60;
+    padding: 6px;
+    display: none;
+  }
+  .dropdown.open { display: block; }
+  .dropdown .opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; color: var(--grey-900);
+  }
+  .dropdown .opt:hover { background: var(--grey-100); }
+  .dropdown .opt .checkbox {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    border: 1.5px solid var(--grey-300);
+    flex-shrink: 0;
+  }
+  .dropdown .opt .checkbox.checked {
+    background: var(--navy-500); border-color: var(--navy-500);
+  }
+  .dropdown .opt .checkbox.checked::after {
+    content: ""; display: block; width: 4px; height: 8px;
+    border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    margin: 1px auto 0;
+  }
+  .dropdown .divider {
+    height: 1px; background: var(--grey-200); margin: 4px 0;
+  }
+  .dropdown .footer {
+    padding: 6px 10px;
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .dropdown .footer a {
+    font-size: 12px; color: var(--navy-500);
+    cursor: pointer; text-decoration: none;
+  }
+  .dropdown .footer a:hover { color: var(--navy-900); }
+
+  /* ===== Bulk action bar ===== */
+  .bulkbar {
+    background: var(--navy-900); color: #fff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-md);
+  }
+  .bulkbar .left { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .bulkbar .left .count { font-weight: 600; }
+  .bulkbar .actions { display: flex; gap: 8px; }
+  .bulkbar .btn {
+    background: #fff; color: var(--navy-900);
+    border: 0; border-radius: 6px; padding: 8px 14px; font-size: 13px;
+    font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .bulkbar .btn.secondary {
+    background: transparent; color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+  }
+  .bulkbar .btn:hover { background: var(--grey-100); }
+  .bulkbar .btn.secondary:hover { background: rgba(255,255,255,0.10); }
+
+  /* ===== Month group ===== */
+  .month-group {
+    background: #fff;
+    border: 1px solid var(--grey-200);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .month-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    background: linear-gradient(0deg, var(--grey-100), #fff);
+    border-bottom: 1px solid var(--grey-200);
+    cursor: pointer;
+    user-select: none;
+  }
+  .month-header.collapsed { border-bottom-color: transparent; }
+  .month-header .left { display: flex; align-items: center; gap: 12px; }
+  .month-header .chev {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--grey-500);
+    transition: transform 200ms;
+  }
+  .month-header.collapsed .chev { transform: rotate(-90deg); }
+  .month-header .title {
+    font-size: 15px; font-weight: 700; color: var(--navy-900);
+  }
+  .month-header .meta {
+    font-size: 12px; color: var(--grey-500);
+    margin-top: 2px;
+  }
+  .month-header .right { display: flex; align-items: center; gap: 14px; }
+  .month-header .select-all {
+    font-size: 12px; color: var(--navy-500); cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .month-header .count-pill {
+    background: var(--navy-50); color: var(--navy-700);
+    padding: 2px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .month-body { display: block; }
+  .month-group.collapsed .month-body { display: none; }
+
+  /* ===== Service sub-header within month ===== */
+  .service-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px 6px;
+    border-top: 1px solid var(--grey-100);
+  }
+  .service-header:first-child { border-top: 0; }
+  .service-header .pip {
+    width: 8px; height: 8px; border-radius: 2px;
+    background: var(--navy-500);
+  }
+  .service-header.otc .pip   { background: #B45309; }
+  .service-header.loan .pip  { background: #7E22CE; }
+  .service-header.staking .pip { background: var(--green-600); }
+  .service-header .title {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--grey-500);
+  }
+
+  /* ===== Statement row ===== */
+  .stmt-row {
+    display: grid;
+    grid-template-columns: 28px 36px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--grey-100);
+    transition: background 120ms;
+  }
+  .service-header + .stmt-row { border-top: 0; }
+  .stmt-row:hover { background: var(--grey-50); }
+  .stmt-row.selected { background: var(--navy-50); }
+  .stmt-row.selected:hover { background: #E1E9F2; }
+
+  /* Checkbox */
+  .checkbox {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--grey-300);
+    border-radius: 4px;
+    cursor: pointer;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .checkbox.checked {
+    background: var(--navy-500); border-color: var(--navy-500);
+  }
+  .checkbox.checked::after {
+    content: ""; display: block; width: 5px; height: 9px;
+    border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+  }
+  .checkbox.indeterminate {
+    background: var(--navy-500); border-color: var(--navy-500);
+  }
+  .checkbox.indeterminate::after {
+    content: ""; display: block; width: 8px; height: 2px; background: #fff;
+    border: 0; transform: none;
+  }
+
+  /* Statement icon */
+  .stmt-icon {
+    width: 36px; height: 36px;
+    background: var(--navy-50);
+    border-radius: 8px;
+    color: var(--navy-500);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .stmt-icon svg { width: 18px; height: 18px; }
+  .stmt-icon.otc { background: #FEF3C7; color: #B45309; }
+  .stmt-icon.loan { background: #F3E8FF; color: #7E22CE; }
+  .stmt-icon.staking { background: var(--green-50); color: var(--green-600); }
+
+  /* Body */
+  .stmt-body { min-width: 0; }
+  .stmt-title {
+    font-size: 14px; font-weight: 600; color: var(--navy-900);
+  }
+  .stmt-title .ent-tag {
+    font-weight: 500; color: var(--grey-700);
+  }
+  .stmt-meta {
+    font-size: 12px; color: var(--grey-500);
+    margin-top: 4px;
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .stmt-meta .dot { color: var(--grey-300); }
+  .stmt-meta .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px; font-weight: 500;
+    background: var(--green-50); color: var(--green-600);
+  }
+  .stmt-meta .badge.amber {
+    background: var(--amber-50); color: var(--amber-700);
+  }
+  .stmt-meta .badge .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Actions */
+  .stmt-actions { display: flex; align-items: center; gap: 4px; }
+  .action-btn {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--grey-500);
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  .action-btn:hover {
+    background: #fff; color: var(--navy-700);
+    border-color: var(--grey-200);
+  }
+  .action-btn svg { width: 16px; height: 16px; }
+
+  /* ===== Empty state ===== */
+  .empty {
+    background: #fff;
+    border: 1px dashed var(--grey-300);
+    border-radius: 12px;
+    padding: 56px 24px;
+    text-align: center;
+    color: var(--grey-500);
+  }
+  .empty .icon {
+    width: 56px; height: 56px;
+    background: var(--grey-100); color: var(--navy-500);
+    margin: 0 auto 16px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .empty .icon svg { width: 26px; height: 26px; }
+  .empty h3 {
+    margin: 0 0 6px; font-size: 16px; font-weight: 600;
+    color: var(--navy-900);
+  }
+  .empty p { margin: 0 0 16px; font-size: 13px; line-height: 1.55; }
+  .empty .reset {
+    background: var(--navy-500); color: #fff;
+    border: 0; border-radius: 8px; padding: 9px 16px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* Helper visibility classes for state-driven rendering */
+  .show-when-default,
+  .show-when-bulk,
+  .show-when-empty { display: none; }
+  body[data-view="default"] .show-when-default { display: block; }
+  body[data-view="bulk"]    .show-when-bulk    { display: block; }
+  body[data-view="empty"]   .show-when-empty   { display: block; }
+  /* Elements that must keep their flex layout when shown */
+  body[data-view="default"] .show-when-default.bulkbar,
+  body[data-view="bulk"]    .show-when-bulk.bulkbar,
+  body[data-view="default"] .show-when-default.filters,
+  body[data-view="bulk"]    .show-when-bulk.filters,
+  body[data-view="empty"]   .show-when-empty.filters { display: flex; }
+</style>
+</head>
+<body data-view="default">
+
+<!-- ===== Top bar ===== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">
+      <div class="stripe"></div><div class="stripe"></div><div class="stripe"></div>
+    </div>
+    HexSafe
+  </div>
+  <div class="right">
+    <button class="btn">
+      Connect Wallet
+      <svg viewBox="0 0 12 8" fill="none" width="10" height="6"><path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="avatar">
+      <div class="circle">RZ</div>
+      <div class="meta">
+        <div class="name">Rock Zeng</div>
+        <div class="ent">Manual QA Testing</div>
+      </div>
+      <svg viewBox="0 0 12 8" fill="none" width="10" height="6"><path d="M1 1l5 5 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+</header>
+
+<!-- Mockup-only state switcher (does not exist in production) -->
+<div class="demo-switch">
+  <label>Mockup view:</label>
+  <select id="viewSwitcher">
+    <option value="default">Default</option>
+    <option value="bulk">Bulk-selected</option>
+    <option value="empty">Empty (filter mismatch)</option>
+  </select>
+</div>
+
+<div class="app">
+  <!-- ===== Left sidebar ===== -->
+  <aside class="sidebar">
+    <div class="icon" title="Vaults">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+    </div>
+    <div class="icon" title="Assets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8 11l4-4 4 4M8 13l4 4 4-4"/></svg>
+    </div>
+    <div class="icon" title="Transactions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13l-3-3M21 17H8l3 3"/></svg>
+    </div>
+    <div class="icon" title="Staking">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L4 7v10l8 5 8-5V7z"/></svg>
+    </div>
+    <div class="icon" title="Investment">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9M15 7h6v6"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <!-- Settings is the active page (since Statements lives under Settings) -->
+    <div class="icon active" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+  </aside>
+
+  <!-- ===== Main content ===== -->
+  <main class="content">
+    <!-- Settings sub-tabs — Statements is the last (new) tab -->
+    <nav class="subtabs">
+      <div class="subtab">Security</div>
+      <div class="subtab">Counterparty Book</div>
+      <div class="subtab">Whitelisting</div>
+      <div class="subtab">Blockchain</div>
+      <div class="subtab">API Key</div>
+      <div class="subtab">Vault Management</div>
+      <div class="subtab">Transaction Policy</div>
+      <div class="subtab active">Statements</div>
+    </nav>
+
+    <div class="page-head">
+      <h1>Statements</h1>
+      <p>Download monthly statements for custody, OTC trading and loans across the Enterprises you have access to.</p>
+    </div>
+
+    <!-- ===== Filter bar (default/bulk states) ===== -->
+    <div class="filters show-when-default show-when-bulk">
+      <!-- Year -->
+      <div class="filter-wrap">
+        <div class="filter active" data-filter="year">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></span>
+          <span class="label">Year:</span> <strong id="year-label">2026</strong>
+          <span class="chev">▾</span>
+        </div>
+        <div class="dropdown" data-dropdown="year">
+          <div class="opt" data-val="2026">
+            <div class="checkbox checked"></div>
+            <span>2026</span>
+          </div>
+          <div class="opt" data-val="2025">
+            <div class="checkbox"></div>
+            <span>2025</span>
+          </div>
+          <div class="divider"></div>
+          <div class="footer">
+            <a data-action="all">Select all</a>
+            <a data-action="clear">Clear</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service -->
+      <div class="filter-wrap">
+        <div class="filter" data-filter="service">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 4h18M6 12h12M10 20h4"/></svg></span>
+          <span class="label">Service:</span> <strong id="service-label">All</strong>
+          <span class="chev">▾</span>
+        </div>
+        <div class="dropdown" data-dropdown="service">
+          <div class="opt" data-val="custody">
+            <div class="checkbox checked"></div>
+            <span>Custody</span>
+          </div>
+          <div class="opt" data-val="otc">
+            <div class="checkbox checked"></div>
+            <span>OTC Trading</span>
+          </div>
+          <div class="opt" data-val="loans">
+            <div class="checkbox checked"></div>
+            <span>Loans</span>
+          </div>
+          <div class="divider"></div>
+          <div class="footer">
+            <a data-action="all">Select all</a>
+            <a data-action="clear">Clear</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="filter-wrap">
+        <div class="filter" data-filter="enterprise">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21V12h6v9"/></svg></span>
+          <span class="label">Enterprise:</span> <strong id="enterprise-label">All (3)</strong>
+          <span class="chev">▾</span>
+        </div>
+        <div class="dropdown" data-dropdown="enterprise" style="min-width:280px">
+          <div class="opt" data-val="ht-markets">
+            <div class="checkbox checked"></div>
+            <span>HT Markets MENA FZE</span>
+          </div>
+          <div class="opt" data-val="meridian">
+            <div class="checkbox checked"></div>
+            <span>Meridian Capital Pte Ltd</span>
+          </div>
+          <div class="opt" data-val="manual-qa">
+            <div class="checkbox checked"></div>
+            <span>Manual QA Testing</span>
+          </div>
+          <div class="divider"></div>
+          <div class="footer">
+            <a data-action="all">Select all</a>
+            <a data-action="clear">Clear</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Filter bar (empty state — different selections) ===== -->
+    <div class="filters show-when-empty">
+      <div class="filter-wrap">
+        <div class="filter active">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></span>
+          <span class="label">Year:</span> <strong>2026</strong>
+          <span class="chev">▾</span>
+        </div>
+      </div>
+      <div class="filter-wrap">
+        <div class="filter active">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 4h18M6 12h12M10 20h4"/></svg></span>
+          <span class="label">Service:</span> <strong>Loans</strong>
+          <span class="chev">▾</span>
+        </div>
+      </div>
+      <div class="filter-wrap">
+        <div class="filter active">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21V12h6v9"/></svg></span>
+          <span class="label">Enterprise:</span> <strong>Meridian Capital Pte Ltd</strong>
+          <span class="chev">▾</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Bulk action bar (only in bulk state) ===== -->
+    <div class="bulkbar show-when-bulk">
+      <div class="left">
+        <div class="checkbox checked"></div>
+        <span class="count">3 statements selected</span>
+        <span style="opacity:.6">·</span>
+        <span style="opacity:.7">Total size ≈ 0.4 MB</span>
+      </div>
+      <div class="actions">
+        <button class="btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download as ZIP
+        </button>
+        <button class="btn secondary">Clear selection</button>
+      </div>
+    </div>
+
+    <!-- ===== Month list (default & bulk only) ===== -->
+    <div class="month-list show-when-default show-when-bulk">
+
+      <!-- ============ April 2026 — expanded by default ============ -->
+      <div class="month-group" data-month="2026-04">
+        <div class="month-header" onclick="toggleMonth(this)">
+          <div class="left">
+            <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div>
+              <div class="title">April 2026</div>
+              <div class="meta">Published 7 May 2026</div>
+            </div>
+            <div class="count-pill">4 statements</div>
+          </div>
+          <div class="right" onclick="event.stopPropagation()">
+            <div class="select-all" data-month="2026-04">
+              <div class="checkbox month-checkbox"></div>
+              <span class="select-text">Select all</span>
+            </div>
+          </div>
+        </div>
+        <div class="month-body">
+
+          <!-- Custody -->
+          <div class="service-header">
+            <span class="pip"></span><span class="title">Custody</span>
+          </div>
+          <div class="stmt-row" data-svc="custody" data-month="2026-04">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+            </div>
+            <div class="stmt-body">
+              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta">
+                <span>Apr 2026</span><span class="dot">·</span>
+                <span>Published 7 May 2026</span><span class="dot">·</span>
+                <span>PDF · CSV</span>
+              </div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+          <div class="stmt-row" data-svc="custody" data-month="2026-04">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+            </div>
+            <div class="stmt-body">
+              <div class="stmt-title">Custody Statement <span class="ent-tag">— Meridian Capital Pte Ltd</span></div>
+              <div class="stmt-meta">
+                <span>Apr 2026</span><span class="dot">·</span>
+                <span>Published 7 May 2026</span><span class="dot">·</span>
+                <span class="badge amber"><span class="pulse"></span>3 pending TR items</span>
+              </div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+
+          <!-- OTC Trading -->
+          <div class="service-header otc">
+            <span class="pip"></span><span class="title">OTC Trading</span>
+          </div>
+          <div class="stmt-row" data-svc="otc" data-month="2026-04">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon otc">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg>
+            </div>
+            <div class="stmt-body">
+              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta">
+                <span>Apr 2026</span><span class="dot">·</span>
+                <span>Published 7 May 2026</span><span class="dot">·</span>
+                <span class="badge amber"><span class="pulse"></span>2 unsettled trades</span>
+              </div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+
+          <!-- Loans -->
+          <div class="service-header loan">
+            <span class="pip"></span><span class="title">Loans</span>
+          </div>
+          <div class="stmt-row" data-svc="loan" data-month="2026-04">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon loan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="stmt-body">
+              <div class="stmt-title">Loan Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta">
+                <span>Apr 2026</span><span class="dot">·</span>
+                <span>Published 7 May 2026</span>
+              </div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ============ March 2026 — collapsed by default ============ -->
+      <div class="month-group collapsed" data-month="2026-03">
+        <div class="month-header collapsed" onclick="toggleMonth(this)">
+          <div class="left">
+            <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div>
+              <div class="title">March 2026</div>
+              <div class="meta">Published 7 April 2026</div>
+            </div>
+            <div class="count-pill">3 statements</div>
+          </div>
+          <div class="right" onclick="event.stopPropagation()">
+            <div class="select-all" data-month="2026-03">
+              <div class="checkbox month-checkbox"></div>
+              <span class="select-text">Select all</span>
+            </div>
+          </div>
+        </div>
+        <div class="month-body">
+          <div class="service-header"><span class="pip"></span><span class="title">Custody</span></div>
+          <div class="stmt-row" data-svc="custody" data-month="2026-03">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+            <div class="stmt-body">
+              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+          <div class="stmt-row" data-svc="custody" data-month="2026-03">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+            <div class="stmt-body">
+              <div class="stmt-title">Custody Statement <span class="ent-tag">— Meridian Capital Pte Ltd</span></div>
+              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+          <div class="service-header otc"><span class="pip"></span><span class="title">OTC Trading</span></div>
+          <div class="stmt-row" data-svc="otc" data-month="2026-03">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon otc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg></div>
+            <div class="stmt-body">
+              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ February 2026 — collapsed by default ============ -->
+      <div class="month-group collapsed" data-month="2026-02">
+        <div class="month-header collapsed" onclick="toggleMonth(this)">
+          <div class="left">
+            <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div>
+              <div class="title">February 2026</div>
+              <div class="meta">Published 7 March 2026</div>
+            </div>
+            <div class="count-pill">2 statements</div>
+          </div>
+          <div class="right" onclick="event.stopPropagation()">
+            <div class="select-all" data-month="2026-02">
+              <div class="checkbox month-checkbox"></div>
+              <span class="select-text">Select all</span>
+            </div>
+          </div>
+        </div>
+        <div class="month-body">
+          <div class="service-header"><span class="pip"></span><span class="title">Custody</span></div>
+          <div class="stmt-row" data-svc="custody" data-month="2026-02">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+            <div class="stmt-body">
+              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta"><span>Feb 2026</span><span class="dot">·</span><span>Published 7 Mar 2026</span></div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+          <div class="service-header otc"><span class="pip"></span><span class="title">OTC Trading</span></div>
+          <div class="stmt-row" data-svc="otc" data-month="2026-02">
+            <div class="checkbox row-checkbox"></div>
+            <div class="stmt-icon otc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg></div>
+            <div class="stmt-body">
+              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
+              <div class="stmt-meta"><span>Feb 2026</span><span class="dot">·</span><span>Published 7 Mar 2026</span></div>
+            </div>
+            <div class="stmt-actions">
+              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===== Empty state (only in empty view) ===== -->
+    <div class="show-when-empty">
+      <div class="empty">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/><circle cx="18" cy="6" r="3" fill="#fff" stroke="#1F6FB2"/><path d="m20 4-4 4" stroke="#1F6FB2"/></svg>
+        </div>
+        <h3>No statements match these filters</h3>
+        <p>Meridian Capital Pte Ltd does not have any Loan statements for 2026.<br/>
+          Try changing the service type, expanding the year range, or clearing filters.</p>
+        <button class="reset">Clear filters</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ===== Mockup view switcher =====
+  const viewSwitcher = document.getElementById('viewSwitcher');
+  function setView(v) {
+    document.body.dataset.view = v;
+    applyBulkSelection();
+  }
+  viewSwitcher.addEventListener('change', (e) => setView(e.target.value));
+
+  // ===== Pre-selected rows for the "bulk" view =====
+  // Visually selects 3 statements in April + 0 elsewhere when view == "bulk"
+  function applyBulkSelection() {
+    const v = document.body.dataset.view;
+    document.querySelectorAll('.stmt-row').forEach(r => {
+      r.classList.remove('selected');
+      const cb = r.querySelector('.row-checkbox');
+      if (cb) cb.classList.remove('checked');
+    });
+    document.querySelectorAll('.month-checkbox').forEach(cb => {
+      cb.classList.remove('checked', 'indeterminate');
+    });
+    document.querySelectorAll('.select-text').forEach(s => s.textContent = 'Select all');
+
+    if (v === 'bulk') {
+      // Mark first 3 rows in April as selected
+      const aprilRows = document.querySelectorAll(
+        '.month-group[data-month="2026-04"] .stmt-row'
+      );
+      [0,1,2].forEach(i => {
+        if (!aprilRows[i]) return;
+        aprilRows[i].classList.add('selected');
+        const cb = aprilRows[i].querySelector('.row-checkbox');
+        if (cb) cb.classList.add('checked');
+      });
+      // April month-level checkbox → indeterminate (3 of 4 selected)
+      const aprMonthCb = document.querySelector(
+        '.month-group[data-month="2026-04"] .month-checkbox'
+      );
+      if (aprMonthCb) aprMonthCb.classList.add('indeterminate');
+      const aprText = document.querySelector(
+        '.month-group[data-month="2026-04"] .select-text'
+      );
+      if (aprText) aprText.textContent = '3 of 4 selected';
+
+      // Make sure April is expanded to show the selection
+      const aprGroup = document.querySelector('.month-group[data-month="2026-04"]');
+      const aprHeader = aprGroup.querySelector('.month-header');
+      aprGroup.classList.remove('collapsed');
+      aprHeader.classList.remove('collapsed');
+    }
+  }
+
+  // ===== Month accordion =====
+  function toggleMonth(headerEl) {
+    const group = headerEl.parentElement;
+    const collapsed = group.classList.toggle('collapsed');
+    if (collapsed) headerEl.classList.add('collapsed');
+    else headerEl.classList.remove('collapsed');
+  }
+
+  // ===== Row click toggles selection (default & bulk views only) =====
+  document.querySelectorAll('.stmt-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Ignore clicks on action buttons
+      if (e.target.closest('.action-btn')) return;
+      row.classList.toggle('selected');
+      const cb = row.querySelector('.row-checkbox');
+      if (cb) cb.classList.toggle('checked');
+    });
+  });
+
+  // ===== Filter dropdowns =====
+  const FILTER_LABELS = {
+    year: {
+      "2026": "2026",
+      "2025": "2025",
+    },
+    service: {
+      "custody": "Custody",
+      "otc":     "OTC Trading",
+      "loans":   "Loans",
+    },
+    enterprise: {
+      "ht-markets": "HT Markets MENA FZE",
+      "meridian":   "Meridian Capital Pte Ltd",
+      "manual-qa":  "Manual QA Testing",
+    },
+  };
+
+  function updateFilterLabel(filterKey) {
+    const dropdown = document.querySelector(`.dropdown[data-dropdown="${filterKey}"]`);
+    if (!dropdown) return;
+    const checked = [...dropdown.querySelectorAll('.opt')]
+      .filter(o => o.querySelector('.checkbox').classList.contains('checked'));
+    const total = dropdown.querySelectorAll('.opt').length;
+    const labelEl = document.getElementById(`${filterKey}-label`);
+    const filterPill = document.querySelector(`.filter[data-filter="${filterKey}"]`);
+
+    if (checked.length === 0) {
+      labelEl.textContent = "None";
+      filterPill.classList.remove('active');
+    } else if (checked.length === total) {
+      labelEl.textContent = (filterKey === 'enterprise') ? `All (${total})` : "All";
+      filterPill.classList.remove('active');
+    } else if (checked.length === 1) {
+      labelEl.textContent = FILTER_LABELS[filterKey][checked[0].dataset.val];
+      filterPill.classList.add('active');
+    } else {
+      labelEl.textContent = `${checked.length} selected`;
+      filterPill.classList.add('active');
+    }
+  }
+
+  // Open/close dropdowns (only one open at a time)
+  document.querySelectorAll('.filter[data-filter]').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = pill.dataset.filter;
+      const dd  = document.querySelector(`.dropdown[data-dropdown="${key}"]`);
+      const isOpen = dd.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('.filter[data-filter]').forEach(f => f.classList.remove('open'));
+      if (!isOpen) {
+        dd.classList.add('open');
+        pill.classList.add('open');
+      }
+    });
+  });
+
+  // Toggle individual options
+  document.querySelectorAll('.dropdown .opt').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cb = opt.querySelector('.checkbox');
+      cb.classList.toggle('checked');
+      const dd = opt.closest('.dropdown');
+      updateFilterLabel(dd.dataset.dropdown);
+    });
+  });
+
+  // Footer actions inside each dropdown
+  document.querySelectorAll('.dropdown .footer a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dd = a.closest('.dropdown');
+      const action = a.dataset.action;
+      dd.querySelectorAll('.opt .checkbox').forEach(cb => {
+        if (action === 'all')   cb.classList.add('checked');
+        if (action === 'clear') cb.classList.remove('checked');
+      });
+      updateFilterLabel(dd.dataset.dropdown);
+    });
+  });
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.filter[data-filter]').forEach(f => f.classList.remove('open'));
+  });
+
+  // ===== Initial state =====
+  setView('default');
+</script>
+
+</body>
+</html>
