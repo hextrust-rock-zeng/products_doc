@@ -29,10 +29,10 @@ exposure. The platform needs a unified flow that:
 3. Surfaces every approved statement to clients via the **Reporting
    Hub**, meeting MAS / VARA record-keeping and disclosure requirements.
 
-**Goal:** an automated platform that, on the 1st of each month,
+**Goal (v1):** an automated platform that, on the 1st of each month,
 generates, reviews, publishes and notifies clients of their monthly
 statements — one statement per client per service per month —
-covering Custody, OTC Trading and Loans.
+covering **Custody and OTC Trading**. Loans deferred to v2.
 
 **Success metric:** ≥ 90 % of client statements published within 7
 calendar days of period close, with zero manual data-entry per
@@ -40,21 +40,22 @@ statement.
 
 ## 2. In scope (v1)
 
-- Three statement types, one per service per **client** per month:
-  **Custody**, **OTC Trading**, **Loans**
+- Two statement types in v1, one per service per **client** per month:
+  **Custody**, **OTC Trading**. *(Loans deferred to v2.)*
 - **Detailed view only** in v1 (full transactional). Simplified view
   is deferred to v2 — pending business alignment.
-- Generation cron at 01:00 UTC on the 1st of each month covering the
-  prior calendar month (00:00:00–23:59:59 UTC)
+- Generation cron at **00:00 UTC** on the 1st of each month covering
+  the prior calendar month (00:00:00–23:59:59 UTC)
 - HexAdmin **review + manual approval** flow before each statement is
   published to the client portal
 - Client-facing **Reporting Hub** in HexSafe (full-page takeover from
   the avatar menu) with multi-select download and bulk ZIP export
-- Email notification to Admin + Admin Approver of the Relationship on
-  publish + on re-issue
+- Email notification to Admin + Admin Approver of the Relationship
+  **on publish only** (no notification on re-generation)
 - **Source-data-only** correction model — all corrections happen
   upstream; statements are regenerated, never edited directly
-- **Silent replace** on re-issue (with audit log entry and notification)
+- **Silent replace** on re-issue (audit log entry only; no client
+  notification)
 - **Indefinite retention** while client is active; **7 years** post-offboarding
 - English UI; **reporting currency follows the client's default currency
   setting** (multi-currency supported in v1)
@@ -64,9 +65,10 @@ statement.
 
 | Item | Defer to |
 |---|---|
+| **Loan statement (entire service)** | v2 |
 | Simplified view variant | v2 (Detailed only in v1, pending business alignment) |
 | CSV export per statement | v2 |
-| Loan drawdown / repayment history | v2 (positions + period interest only in v1) |
+| Loan drawdown / repayment history | v2 (folded into the Loan-statement-deferred decision above) |
 | Auto-publish (no manual review) | Post-launch, per-client opt-in |
 | Backfill of historical periods | Out — historical manual PDFs remain accessible separately |
 | Referral fees on statement | Out — BD-owned, separate workflow |
@@ -168,7 +170,18 @@ states (Default / Bulk-selected / Empty) selectable via the bottom-right
 ## 7. Statement content — by service
 
 Reference layout: see `sample-statements/` for Simplified + Detailed
-PDF and DOCX per service. Each statement opens with a shared **Summary
+PDF and DOCX per service. **Naming convention** (PDF filename + display title in HexAdmin /
+Reporting Hub):
+
+- Custody: `Custody_<EntityName>_Statement`
+- OTC Trading: `Trading_<EntityName>_Statement`
+- Loans (v2): `Loans_<EntityName>_Statement`
+
+`<EntityName>` is the legal entity name with spaces stripped
+(e.g. `HTMarketsMENAFZE`). Period (`YYYY-MM`) may be appended at
+download time.
+
+Each statement opens with a shared **Summary
 page** (period, snapshot timestamp, client name, issuing entity, MAS
 PSN04 / VARA disclosure block, and a service-specific *Pending Items*
 block where applicable) before the sections below.
@@ -240,7 +253,7 @@ with explicit Trade-ID linkage, not duplicated bookings.
 
 ```
                  ┌───────────────┐
-   01:00 UTC ─►  │ Cron trigger  │  (1st of each month, covers M-1)
+   00:00 UTC ─►  │ Cron trigger  │  (1st of each month, covers M-1)
                  └──────┬────────┘
                         │
                  ┌──────▼──────────────┐
