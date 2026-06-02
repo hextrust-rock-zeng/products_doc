@@ -13,9 +13,9 @@
 ## 1. Problem & goal
 
 Hex Trust today produces monthly client statements **manually**
-(Customer Support + Operator Manager compile from multiple internal
-systems, format in Excel / Word, send via email). This is slow,
-error-prone, inconsistent across regions, and doesn't scale.
+(Customer Support + Operator compile from multiple internal systems,
+format in Excel / Word, send via email). This is slow, error-prone,
+inconsistent across regions, and doesn't scale.
 
 **Goal:** an automated platform that, on the 1st of each month,
 generates, reviews, publishes and notifies clients of their monthly
@@ -30,8 +30,8 @@ statement.
 
 - Three statement types, one per service per **client** per month:
   **Custody**, **OTC Trading**, **Loans**
-- Two view variants per type: **Simplified** (client-facing summary)
-  and **Detailed** (full transactional)
+- **Detailed view only** in v1 (full transactional). Simplified view
+  is deferred to v2 — pending business alignment.
 - Generation cron at 01:00 UTC on the 1st of each month covering the
   prior calendar month (00:00:00–23:59:59 UTC)
 - HexAdmin **review + manual approval** flow before each statement is
@@ -52,6 +52,7 @@ statement.
 
 | Item | Defer to |
 |---|---|
+| Simplified view variant | v2 (Detailed only in v1, pending business alignment) |
 | CSV export per statement | v2 |
 | Loan drawdown / repayment history | v2 (positions + period interest only in v1) |
 | Auto-publish (no manual review) | Post-launch, per-client opt-in |
@@ -71,10 +72,7 @@ statement.
 | Role | Capability |
 |---|---|
 | Customer Support | Review generated statements, approve to publish, trigger re-generation |
-| Operator Manager | Same as Customer Support; final approver for re-issue after source-data corrections |
-
-> **Open item — permissions for HexAdmin source-data corrections** still
-> needs explicit RACI agreement with Customer Support + Operator Manager.
+| Operator | Same as Customer Support |
 
 ## 5. Data model — Relationship & entity scoping
 
@@ -118,6 +116,13 @@ graph TD
 per service per month.*
 
 ## 6. UX — Reporting Hub
+
+Two interactive mockups (open in any browser):
+
+| Persona | Mockup | What's inside |
+|---|---|---|
+| **Client** (HexSafe Reporting Hub) | [Open client mockup](https://htmlpreview.github.io/?https://github.com/hextrust-rock-zeng/products_doc/blob/feature/monthly-statement-mockup/mockup/monthly_client_statement/statements_mockup.html) | Full-page Reporting Hub, month-grouped statements list, multi-select download. *Mockup view* dropdown (bottom-right) switches between Default · Bulk-selected · Empty. |
+| **HexAdmin** (Customer Support / Operator) | [Open HexAdmin mockup](https://htmlpreview.github.io/?https://github.com/hextrust-rock-zeng/products_doc/blob/feature/monthly-statement-mockup/mockup/monthly_client_statement/hexadmin_statements_mockup.html) | Fee Calculation › Client Statements with **Custody · Trading · Loans** sub-tabs. Each sub-tab supports All-Entities or specific-entity selection + month picker + Generate. Queue below shows draft / pending / published statements with Preview · Approve & Publish · Re-issue. |
 
 **Placement:** new top-level entry in the user/avatar dropdown menu,
 between **Settings** and **Help Center**.
@@ -263,22 +268,21 @@ with explicit Trade-ID linkage, not duplicated bookings.
 
 ### Re-issue flow
 
-Triggered when source data changes after publish (e.g. late price fix,
-Travel Rule status update, settlement correction).
+Triggered when source data changes after publish (e.g. failure of
+detecting transactions).
 
-1. HexAdmin operator corrects source data via the relevant service UI
-   (tx-history, asset-evaluator, trade-history). Source audit applies.
-2. Operator re-triggers statement generation for the affected period.
+1. Production support fixes the data source (e.g. by replaying blocks).
+   Source audit applies.
+2. Client Support re-triggers statement generation for the affected
+   period.
 3. New draft replaces the published one **silently** (silent replace).
-4. **Audit log entry** records the re-issue (operator, timestamp, diff
-   summary).
-5. **Email notification** to Admin + Admin Approver flagging the
-   re-issue with a one-line reason.
+4. **Audit log entry** records the re-issue (operator, timestamp).
+5. **No notification to client on re-generation.**
 
 ### Cut-off & timezone
 - Period boundary: **23:59:59 UTC** on the last day of the calendar
   month
-- Cron fires at **01:00 UTC on the 1st** of the next month
+- Cron fires at **00:00 UTC on the 1st** of the next month
 - All timestamps in statements are UTC
 
 ### Approval gate
@@ -287,10 +291,11 @@ Travel Rule status update, settlement correction).
   auto-publish toggle per client
 
 ### Backfill
-- **No backfill.** Launch month forward only.
-- Historical manual PDFs remain accessible separately (out of platform
-  scope).
-- Client comms to go out before launch.
+- Launch month forward only by default, **but new logic + existing data
+  can be used to (re-)generate older statements if needed**.
+- Old and new client-statement modules **can run in parallel for the
+  first few months** if needed.
+- No client comms needed before launch.
 
 ## 9. Edge cases
 
@@ -299,8 +304,6 @@ Travel Rule status update, settlement correction).
 | New client mid-month | First statement: period = onboarding date → period end. Period clearly labelled. |
 | Mid-month offboarding | Final statement labelled "FINAL STATEMENT", period = period start → offboarding date. Active delivery + retention. |
 | Zero-activity month | Still produce statement showing opening = closing. Standard banking practice. |
-| Late-arriving price | Re-issue flow (see §8). |
-| Travel Rule status flips post-publish | Re-issue flow. |
 | OTC trade settles after period end | Trade appears in the period it was *booked*; flagged "Unsettled at period end"; subsequent period's Settlement Movements section shows the asset moves. |
 | Source data fundamentally wrong (not just a price tick) | Same source-data fix + re-issue path. No statement-level override allowed. |
 
@@ -309,10 +312,6 @@ Travel Rule status update, settlement correction).
 | Trigger | Recipients | Channel | Content |
 |---|---|---|---|
 | Statement published | Admin + Admin Approver of the Relationship | Email | "Your statements for {Month} are ready" + deep-link |
-| Statement re-issued | Admin + Admin Approver | Email | "Your {Service} statement for {Month} has been updated" + one-line reason + deep-link |
-
-> **Open item** — exact subject lines, sender address, and digest
-> vs per-statement pattern to be confirmed with Customer Support.
 
 ## 11. Retention & access
 
@@ -326,9 +325,20 @@ Travel Rule status update, settlement correction).
 ## 12. Compliance & disclosure
 
 - Each statement carries the **issuing entity's regulatory disclosure
-  block** at the foot (MAS PSN04 for SG, VARA equivalents for MENA,
-  HK SFC equivalents for HK). Compliance owns the exact text per
-  jurisdiction.
+  block** at the foot (MAS PSN04 for SG, VARA equivalents for MENA).
+  Compliance owns the exact text per jurisdiction. Current production
+  wording (used as the baseline):
+
+  > **Disclaimer:** The client must review the information in the
+  > monthly statement and give Hex Trust written notice of any
+  > suspected error or omission as soon as reasonably possible (in any
+  > event, no later than 7 days of accessing / receiving the
+  > statement). Hex Trust will not be liable with respect to any error
+  > or omission in the monthly statement (including any reliance on any
+  > such error or omission) unless the client has timely objected in
+  > writing as aforementioned, unless such error or omission is the
+  > result of Hex Trust's bad faith or willful default.
+
 - Travel Rule (FATF R.16) pending items surface in the Custody
   statement's *Pending Items* section.
 - SG-mandated transaction reason codes are honoured throughout the
@@ -336,35 +346,15 @@ Travel Rule status update, settlement correction).
   Stake, Unstake, Unbond, Redeem, Claiming Rewards, Validator
   Commission, Vote).
 
-## 13. Non-functional requirements
-
-| Concern | Target |
-|---|---|
-| Generation throughput | All statements for a typical month published within 7 calendar days of period close |
-| Per-statement render time | < 60 s p99 (lock-in once first prod data informs sizing) |
-| Concurrent renders | Match scheduler worker pool — sized after the first scale test |
-| Audit retention | 7 years for all source-data corrections + statement re-issue events |
-| Accessibility | PDFs tagged for screen readers (basic); no specific WCAG target for v1 mockup |
-| Localisation | English UI; reporting currency = client's default currency (multi-currency in v1) |
-
-> **Open item — performance & scale SLA** targets to be revisited
-> once Engineering has sized against the largest expected client
-> (vault count × tx volume).
-
-## 14. Open items / business follow-ups
+## 13. Open items / business follow-ups
 
 | # | Topic | Owner |
 |---|---|---|
-| 1 | Staking commission strategy (per-provider feasibility: Kiln direct vs Lido derived vs Cosmos chain-parse; is commission disclosure a contractual commitment?) | Business + Staking team |
-| 2 | Email pattern — single digest per month vs per-statement | Customer Support |
-| 3 | Auto-publish opt-in policy (post-launch) | Customer Support |
-| 4 | HexAdmin source-data correction RACI | Customer Support + Operator Manager |
-| 5 | Notification template wording (subject / sender / body) | Customer Support + Marketing |
-| 6 | Performance & scale SLA targets | Tech |
-| 7 | Test plan — beta cohort selection + phased rollout (SG → MENA → HK?) | Customer Support + Tech |
-| 8 | Anomaly detection thresholds (post-launch) | Customer Support |
-| 9 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Compliance |
-| 10 | Trade-confirmation-email reconciliation overlap (Giovanni's flagged gap) | Operator Manager |
+| 1 | Staking commission: should we put on client statement? if yes, how can we get the commission? | Business |
+| 2 | Simplified view variant — keep, drop, or defer to v2? | Business |
+| 3 | Auto-publish opt-in policy & UX | Customer Support |
+| 4 | Notification template wording (subject / sender / body) | Customer Support + Custody |
+| 5 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Compliance |
 
 ---
 
