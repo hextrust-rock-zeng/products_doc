@@ -5,11 +5,13 @@ review.  It contains:
 
 | File | Purpose |
 |---|---|
-| `statements_mockup.html` | Interactive HTML mockup of the new **Statements** tab in HexSafe (under *Settings*).  Single file, no external dependencies — open it in any modern browser. |
-| `sample-statements/SimplifiedStatement_sample.pdf` | Reference example of the Simplified-view monthly statement (PDF). |
-| `sample-statements/SimplifiedStatement_sample.docx` | Same as above, in DOCX. |
-| `sample-statements/DetailedStatement_sample.pdf` | Reference example of the Detailed-view monthly statement (PDF). |
-| `sample-statements/DetailedStatement_sample.docx` | Same as above, in DOCX. |
+| `statements_mockup.html` | Interactive HTML mockup of the new **Monthly Statements** screen inside the new **Reporting Hub** in HexSafe. Reporting Hub sits in the avatar dropdown menu (between *Settings* and *Help Center*) and opens as a **full-page takeover** — no left sidebar, no per-Enterprise context. A *Back to Custody Wallet* button in the top bar returns the user to the main HexSafe app. Single file, no external dependencies — open it in any modern browser. |
+| `sample-statements/Custody_Simplified_sample.{pdf,docx}` | Custody — Simplified view. |
+| `sample-statements/Custody_Detailed_sample.{pdf,docx}` | Custody — Detailed view. |
+| `sample-statements/OTCTrading_Simplified_sample.{pdf,docx}` | OTC Trading — Simplified view. |
+| `sample-statements/OTCTrading_Detailed_sample.{pdf,docx}` | OTC Trading — Detailed view. |
+| `sample-statements/Loans_Simplified_sample.{pdf,docx}` | Loans — Simplified view (positions + period interest). |
+| `sample-statements/Loans_Detailed_sample.{pdf,docx}` | Loans — Detailed view (positions + period interest + margin events). |
 
 ## How to view
 
@@ -26,15 +28,25 @@ needed.
 
 ## What the mockup shows
 
-- New **Statements** sub-tab placed at the end of the *Settings* tabs
-  (right of *Transaction Policy*).
-- Three multi-select filters in one row: **Year**, **Service**,
-  **Enterprise**.  Each opens a dropdown panel with checkboxes.
-- Monthly groups, ordered newest → oldest.  Latest month is expanded by
+- New **Reporting Hub** entry in the avatar dropdown menu (between
+  *Settings* and *Help Center*). The dropdown is rendered open in the
+  mockup with *Reporting Hub* highlighted to make the placement explicit.
+- Breadcrumb under the topbar — *Avatar menu › Reporting Hub › Monthly
+  Statements* — so reviewers can see the access path.
+- Reporting Hub in v1 hosts a single page — **Monthly Statements**.
+- Reporting Hub opens **full-page** — no left sidebar, no enterprise /
+  currency selector visible. The user enters from the avatar menu and
+  returns via the *Back to Custody Wallet* button in the top bar.
+- The page shows all monthly statements the signed-in user has access
+  to (across the entities in their Relationship). Enterprise scoping
+  / row attribution is intentionally hidden from the v1 UI.
+- Two multi-select filters in one row: **Year** and **Service**. Each
+  opens a dropdown panel with checkboxes.
+- Monthly groups, ordered newest → oldest. Latest month is expanded by
   default; older months are collapsed (click month header to expand).
 - Within each month, statements are sub-grouped by service type:
-  **Custody → OTC Trading → Loans**.  Each service block lists one row per
-  Enterprise.
+  **Custody → OTC Trading → Loans**. One row per service per month
+  (since the page is already entity-scoped).
 - Each row shows: month, publish date, format hint (PDF · CSV) and any
   pending-item badge (e.g. *2 unsettled trades*, *3 pending TR items*).
 - Single per-row action: **Download**.
@@ -62,16 +74,16 @@ final artefact the client receives.
 ## Layout reference
 
 ```
-Settings ▸ Statements
-├── Filter bar    [ Year ▾ ] [ Service ▾ ] [ Enterprise ▾ ]
+Top bar       [ ← Back to Custody Wallet ]                  [ avatar ▾ ]
+Reporting Hub ▸ Monthly Statements
+├── Filter bar    [ Year ▾ ] [ Service ▾ ]
 ├── Bulk action bar (only when ≥1 row selected)
 └── Month groups (newest first)
-    └── April 2026                             [4 statements]  [☐ Select all]
+    └── April 2026                             [3 statements]  [☐ Select all]
         ├── ■ CUSTODY
-        │   ☐  Custody Statement — HT Markets MENA FZE        ⇩
-        │   ☐  Custody Statement — Meridian Capital Pte Ltd   ⇩
+        │   ☐  Custody Statement — Apr 2026                   ⇩
         ├── ■ OTC TRADING
-        │   ☐  OTC Trading Statement — HT Markets MENA FZE    ⇩
+        │   ☐  OTC Trading Statement — Apr 2026               ⇩
         └── ■ LOANS
-            ☐  Loan Statement — HT Markets MENA FZE           ⇩
+            ☐  Loan Statement — Apr 2026                      ⇩
 ```

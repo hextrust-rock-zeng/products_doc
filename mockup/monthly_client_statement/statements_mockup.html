@@ -67,10 +67,69 @@
     display: flex; align-items: center; gap: 8px;
     cursor: pointer;
   }
+  .topbar .avatar-wrap { position: relative; }
   .topbar .avatar {
     display: flex; align-items: center; gap: 10px;
     padding: 6px 8px; border-radius: 6px;
+    cursor: pointer;
   }
+  .topbar .avatar:hover { background: rgba(255,255,255,0.06); }
+
+  /* User menu dropdown (anchored to avatar) */
+  .user-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 280px;
+    background: #fff;
+    color: var(--grey-900);
+    border-radius: 10px;
+    box-shadow: 0 12px 36px rgba(15,42,77,0.18);
+    border: 1px solid var(--grey-200);
+    z-index: 80;
+    padding: 8px 0;
+    display: none;
+  }
+  .user-menu.open { display: block; }
+  .user-menu .um-label {
+    font-size: 11px; color: var(--grey-500);
+    padding: 6px 14px 2px; text-transform: none;
+  }
+  .user-menu .um-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 13px; color: var(--grey-900);
+    cursor: pointer;
+  }
+  .user-menu .um-row:hover { background: var(--grey-100); }
+  .user-menu .um-row.active {
+    background: var(--navy-50); color: var(--navy-900); font-weight: 600;
+  }
+  .user-menu .um-row .chev { color: var(--grey-500); font-size: 12px; }
+  .user-menu .um-pill {
+    display: block; margin: 6px 12px 8px;
+    padding: 8px 0;
+    background: var(--navy-50); color: var(--navy-700);
+    border: 1px solid #DCE5F0;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    text-align: center; cursor: pointer;
+  }
+  .user-menu .um-divider {
+    height: 1px; background: var(--grey-200); margin: 6px 0;
+  }
+  .user-menu .um-row .um-value {
+    color: var(--grey-700); font-weight: 500;
+  }
+
+  /* Breadcrumb (above page-head, signals nav path) */
+  .crumb {
+    font-size: 12px; color: var(--grey-500);
+    padding: 14px 0 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .crumb .sep { color: var(--grey-300); }
+  .crumb .here { color: var(--navy-700); font-weight: 600; }
   .topbar .avatar .circle {
     width: 32px; height: 32px; border-radius: 50%;
     background: var(--navy-500); color: #fff;
@@ -81,11 +140,13 @@
   .topbar .avatar .meta .name { font-weight: 600; }
   .topbar .avatar .meta .ent  { opacity: 0.75; font-size: 11px; }
 
-  /* ===== App shell ===== */
-  .app { display: grid; grid-template-columns: 64px 1fr; min-height: calc(100vh - 64px); }
+  /* ===== App shell =====
+     Reporting Hub is a full-page takeover — no left sidebar. */
+  .app { display: grid; grid-template-columns: 1fr; min-height: calc(100vh - 64px); }
+  .sidebar { display: none !important; }
 
-  /* ===== Left sidebar ===== */
-  .sidebar {
+  /* (Left sidebar styles kept below for reference but the element is hidden) */
+  .sidebar-orig-hidden {
     background: var(--navy-900);
     padding: 16px 0;
     display: flex; flex-direction: column; align-items: center;
@@ -106,7 +167,7 @@
   .sidebar .spacer { flex: 1; }
 
   /* ===== Content area ===== */
-  .content { padding: 0 32px 64px; max-width: 1400px; }
+  .content { padding: 0 32px 64px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
   /* ===== Settings sub-tabs ===== */
   .subtabs {
@@ -135,8 +196,8 @@
   /* ===== Mockup-only view switcher (small floating widget) ===== */
   .demo-switch {
     position: fixed;
-    top: 80px;
-    right: 24px;
+    bottom: 16px;
+    right: 16px;
     background: var(--navy-900);
     color: #fff;
     border-radius: 8px;
@@ -493,17 +554,28 @@
     HexSafe
   </div>
   <div class="right">
-    <button class="btn">
-      Connect Wallet
-      <svg viewBox="0 0 12 8" fill="none" width="10" height="6"><path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <button class="btn" title="Return to HexSafe Custody Wallet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back to Custody Wallet
     </button>
-    <div class="avatar">
-      <div class="circle">RZ</div>
-      <div class="meta">
-        <div class="name">Rock Zeng</div>
-        <div class="ent">Manual QA Testing</div>
+    <div class="avatar-wrap">
+      <div class="avatar" onclick="toggleUserMenu(event)">
+        <div class="circle">RZ</div>
+        <div class="meta">
+          <div class="name">Rock Zeng</div>
+          <div class="ent">rock.zeng@hextrust.com</div>
+        </div>
+        <svg viewBox="0 0 12 8" fill="none" width="10" height="6"><path d="M1 1l5 5 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <svg viewBox="0 0 12 8" fill="none" width="10" height="6"><path d="M1 1l5 5 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <!-- User menu dropdown — open so reviewers can see Reporting Hub between Settings and Help Center.
+           Enterprise / Currency rows belong to the per-entity Custody Wallet view and are hidden here. -->
+      <div class="user-menu open" id="userMenu" onclick="event.stopPropagation()">
+        <div class="um-row"><span>Settings</span></div>
+        <div class="um-row active"><span>Reporting Hub</span><span class="chev">›</span></div>
+        <div class="um-row"><span>Help Center</span></div>
+        <div class="um-divider"></div>
+        <div class="um-row" style="color:#B91C1C"><span>Logout</span></div>
+      </div>
     </div>
   </div>
 </header>
@@ -537,29 +609,24 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9M15 7h6v6"/></svg>
     </div>
     <div class="spacer"></div>
-    <!-- Settings is the active page (since Statements lives under Settings) -->
-    <div class="icon active" title="Settings">
+    <!-- Reporting Hub is NOT a sidebar item — it lives in the avatar menu,
+         between Settings and Help Center. Sidebar shows no active item
+         while the user is on a Reporting Hub page. -->
+    <div class="icon" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </div>
   </aside>
 
   <!-- ===== Main content ===== -->
   <main class="content">
-    <!-- Settings sub-tabs — Statements is the last (new) tab -->
-    <nav class="subtabs">
-      <div class="subtab">Security</div>
-      <div class="subtab">Counterparty Book</div>
-      <div class="subtab">Whitelisting</div>
-      <div class="subtab">Blockchain</div>
-      <div class="subtab">API Key</div>
-      <div class="subtab">Vault Management</div>
-      <div class="subtab">Transaction Policy</div>
-      <div class="subtab active">Statements</div>
+    <!-- Reporting Hub sub-tabs — v1 has Monthly Statements only -->
+    <nav class="subtabs" style="margin-top:16px">
+      <div class="subtab active">Monthly Statements</div>
     </nav>
 
     <div class="page-head">
-      <h1>Statements</h1>
-      <p>Download monthly statements for custody, OTC trading and loans across the Enterprises you have access to.</p>
+      <h1>Monthly Statements</h1>
+      <p>Download monthly statements covering custody, OTC trading and loans. One statement per service per month.</p>
     </div>
 
     <!-- ===== Filter bar (default/bulk states) ===== -->
@@ -616,33 +683,6 @@
         </div>
       </div>
 
-      <!-- Enterprise -->
-      <div class="filter-wrap">
-        <div class="filter" data-filter="enterprise">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21V12h6v9"/></svg></span>
-          <span class="label">Enterprise:</span> <strong id="enterprise-label">All (3)</strong>
-          <span class="chev">▾</span>
-        </div>
-        <div class="dropdown" data-dropdown="enterprise" style="min-width:280px">
-          <div class="opt" data-val="ht-markets">
-            <div class="checkbox checked"></div>
-            <span>HT Markets MENA FZE</span>
-          </div>
-          <div class="opt" data-val="meridian">
-            <div class="checkbox checked"></div>
-            <span>Meridian Capital Pte Ltd</span>
-          </div>
-          <div class="opt" data-val="manual-qa">
-            <div class="checkbox checked"></div>
-            <span>Manual QA Testing</span>
-          </div>
-          <div class="divider"></div>
-          <div class="footer">
-            <a data-action="all">Select all</a>
-            <a data-action="clear">Clear</a>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ===== Filter bar (empty state — different selections) ===== -->
@@ -661,13 +701,6 @@
           <span class="chev">▾</span>
         </div>
       </div>
-      <div class="filter-wrap">
-        <div class="filter active">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21V12h6v9"/></svg></span>
-          <span class="label">Enterprise:</span> <strong>Meridian Capital Pte Ltd</strong>
-          <span class="chev">▾</span>
-        </div>
-      </div>
     </div>
 
     <!-- ===== Bulk action bar (only in bulk state) ===== -->
@@ -676,7 +709,7 @@
         <div class="checkbox checked"></div>
         <span class="count">3 statements selected</span>
         <span style="opacity:.6">·</span>
-        <span style="opacity:.7">Total size ≈ 0.4 MB</span>
+        <span style="opacity:.7">Total size ≈ 0.3 MB</span>
       </div>
       <div class="actions">
         <button class="btn">
@@ -699,7 +732,7 @@
               <div class="title">April 2026</div>
               <div class="meta">Published 7 May 2026</div>
             </div>
-            <div class="count-pill">4 statements</div>
+            <div class="count-pill">3 statements</div>
           </div>
           <div class="right" onclick="event.stopPropagation()">
             <div class="select-all" data-month="2026-04">
@@ -720,29 +753,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
             </div>
             <div class="stmt-body">
-              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta">
-                <span>Apr 2026</span><span class="dot">·</span>
-                <span>Published 7 May 2026</span><span class="dot">·</span>
-                <span>PDF · CSV</span>
-              </div>
-            </div>
-            <div class="stmt-actions">
-              <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
-            </div>
-          </div>
-          <div class="stmt-row" data-svc="custody" data-month="2026-04">
-            <div class="checkbox row-checkbox"></div>
-            <div class="stmt-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
-            </div>
-            <div class="stmt-body">
-              <div class="stmt-title">Custody Statement <span class="ent-tag">— Meridian Capital Pte Ltd</span></div>
-              <div class="stmt-meta">
-                <span>Apr 2026</span><span class="dot">·</span>
-                <span>Published 7 May 2026</span><span class="dot">·</span>
-                <span class="badge amber"><span class="pulse"></span>3 pending TR items</span>
-              </div>
+              <div class="stmt-title">Custody Statement <span style="font-weight:400;color:var(--grey-500)">— Apr 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -759,12 +770,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg>
             </div>
             <div class="stmt-body">
-              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta">
-                <span>Apr 2026</span><span class="dot">·</span>
-                <span>Published 7 May 2026</span><span class="dot">·</span>
-                <span class="badge amber"><span class="pulse"></span>2 unsettled trades</span>
-              </div>
+              <div class="stmt-title">OTC Trading Statement <span style="font-weight:400;color:var(--grey-500)">— Apr 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -781,11 +787,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg>
             </div>
             <div class="stmt-body">
-              <div class="stmt-title">Loan Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta">
-                <span>Apr 2026</span><span class="dot">·</span>
-                <span>Published 7 May 2026</span>
-              </div>
+              <div class="stmt-title">Loan Statement <span style="font-weight:400;color:var(--grey-500)">— Apr 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -804,7 +806,7 @@
               <div class="title">March 2026</div>
               <div class="meta">Published 7 April 2026</div>
             </div>
-            <div class="count-pill">3 statements</div>
+            <div class="count-pill">2 statements</div>
           </div>
           <div class="right" onclick="event.stopPropagation()">
             <div class="select-all" data-month="2026-03">
@@ -819,19 +821,7 @@
             <div class="checkbox row-checkbox"></div>
             <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
             <div class="stmt-body">
-              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
-            </div>
-            <div class="stmt-actions">
-              <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
-            </div>
-          </div>
-          <div class="stmt-row" data-svc="custody" data-month="2026-03">
-            <div class="checkbox row-checkbox"></div>
-            <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
-            <div class="stmt-body">
-              <div class="stmt-title">Custody Statement <span class="ent-tag">— Meridian Capital Pte Ltd</span></div>
-              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
+              <div class="stmt-title">Custody Statement <span style="font-weight:400;color:var(--grey-500)">— Mar 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -842,8 +832,7 @@
             <div class="checkbox row-checkbox"></div>
             <div class="stmt-icon otc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg></div>
             <div class="stmt-body">
-              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta"><span>Mar 2026</span><span class="dot">·</span><span>Published 7 Apr 2026</span></div>
+              <div class="stmt-title">OTC Trading Statement <span style="font-weight:400;color:var(--grey-500)">— Mar 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -876,8 +865,7 @@
             <div class="checkbox row-checkbox"></div>
             <div class="stmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
             <div class="stmt-body">
-              <div class="stmt-title">Custody Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta"><span>Feb 2026</span><span class="dot">·</span><span>Published 7 Mar 2026</span></div>
+              <div class="stmt-title">Custody Statement <span style="font-weight:400;color:var(--grey-500)">— Feb 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -888,8 +876,7 @@
             <div class="checkbox row-checkbox"></div>
             <div class="stmt-icon otc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 9-9"/><path d="M15 7h6v6"/></svg></div>
             <div class="stmt-body">
-              <div class="stmt-title">OTC Trading Statement <span class="ent-tag">— HT Markets MENA FZE</span></div>
-              <div class="stmt-meta"><span>Feb 2026</span><span class="dot">·</span><span>Published 7 Mar 2026</span></div>
+              <div class="stmt-title">OTC Trading Statement <span style="font-weight:400;color:var(--grey-500)">— Feb 2026</span></div>
             </div>
             <div class="stmt-actions">
               <button class="action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
@@ -907,7 +894,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/><circle cx="18" cy="6" r="3" fill="#fff" stroke="#1F6FB2"/><path d="m20 4-4 4" stroke="#1F6FB2"/></svg>
         </div>
         <h3>No statements match these filters</h3>
-        <p>Meridian Capital Pte Ltd does not have any Loan statements for 2026.<br/>
+        <p>HT Markets MENA FZE has no Loan statements published for 2026.<br/>
           Try changing the service type, expanding the year range, or clearing filters.</p>
         <button class="reset">Clear filters</button>
       </div>
@@ -950,15 +937,15 @@
         const cb = aprilRows[i].querySelector('.row-checkbox');
         if (cb) cb.classList.add('checked');
       });
-      // April month-level checkbox → indeterminate (3 of 4 selected)
+      // April month-level checkbox → all selected (3 of 3)
       const aprMonthCb = document.querySelector(
         '.month-group[data-month="2026-04"] .month-checkbox'
       );
-      if (aprMonthCb) aprMonthCb.classList.add('indeterminate');
+      if (aprMonthCb) aprMonthCb.classList.add('checked');
       const aprText = document.querySelector(
         '.month-group[data-month="2026-04"] .select-text'
       );
-      if (aprText) aprText.textContent = '3 of 4 selected';
+      if (aprText) aprText.textContent = 'All 3 selected';
 
       // Make sure April is expanded to show the selection
       const aprGroup = document.querySelector('.month-group[data-month="2026-04"]');
@@ -998,11 +985,6 @@
       "otc":     "OTC Trading",
       "loans":   "Loans",
     },
-    enterprise: {
-      "ht-markets": "HT Markets MENA FZE",
-      "meridian":   "Meridian Capital Pte Ltd",
-      "manual-qa":  "Manual QA Testing",
-    },
   };
 
   function updateFilterLabel(filterKey) {
@@ -1018,7 +1000,7 @@
       labelEl.textContent = "None";
       filterPill.classList.remove('active');
     } else if (checked.length === total) {
-      labelEl.textContent = (filterKey === 'enterprise') ? `All (${total})` : "All";
+      labelEl.textContent = "All";
       filterPill.classList.remove('active');
     } else if (checked.length === 1) {
       labelEl.textContent = FILTER_LABELS[filterKey][checked[0].dataset.val];
@@ -1075,7 +1057,16 @@
   document.addEventListener('click', () => {
     document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
     document.querySelectorAll('.filter[data-filter]').forEach(f => f.classList.remove('open'));
+    const um = document.getElementById('userMenu');
+    if (um) um.classList.remove('open');
   });
+
+  // ===== User-menu (avatar) toggle =====
+  function toggleUserMenu(e) {
+    e.stopPropagation();
+    const um = document.getElementById('userMenu');
+    if (um) um.classList.toggle('open');
+  }
 
   // ===== Initial state =====
   setView('default');
