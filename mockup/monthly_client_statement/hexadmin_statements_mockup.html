@@ -356,7 +356,52 @@
   .badge.failed    { background: var(--red-50);   color: var(--red-700);   }
 
   /* Actions */
-  .q-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .q-actions { display: flex; gap: 6px; justify-content: flex-end; position: relative; }
+
+  /* Kebab (...) button + menu */
+  .kebab {
+    width: 32px; height: 32px;
+    background: #fff;
+    border: 1px solid var(--grey-300);
+    border-radius: 6px;
+    color: var(--grey-700);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .kebab:hover { border-color: var(--navy-500); color: var(--navy-700); background: var(--grey-50); }
+  .kebab svg { width: 16px; height: 16px; }
+  .action-menu {
+    position: absolute;
+    top: calc(100% + 4px); right: 0;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid var(--grey-200);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    z-index: 70;
+    padding: 4px;
+    display: none;
+  }
+  .action-menu.open { display: block; }
+  .action-menu .mi {
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--grey-900);
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .action-menu .mi:hover { background: var(--grey-100); }
+  .action-menu .mi.primary { color: var(--navy-700); font-weight: 600; }
+  .action-menu .mi.primary:hover { background: var(--navy-50); }
+  .action-menu .mi.warn { color: var(--red-700); }
+  .action-menu .mi.warn:hover { background: var(--red-50); }
+  .action-menu .mi svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .action-menu .mi-divider {
+    height: 1px; background: var(--grey-200); margin: 4px 0;
+  }
+
   .btn {
     border: 1px solid var(--grey-300);
     background: #fff;
@@ -623,9 +668,15 @@
               <span class="sub">by Statement Cron</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</button>
-              <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</button>
-              <button class="btn ghost" title="Re-generate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</div>
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</div>
+                <div class="mi-divider"></div>
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
 
@@ -647,9 +698,15 @@
               <span class="sub">by Statement Cron</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</button>
-              <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</button>
-              <button class="btn ghost" title="Re-generate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</div>
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</div>
+                <div class="mi-divider"></div>
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
 
@@ -671,9 +728,15 @@
               <span class="sub">by Statement Cron</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</button>
-              <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</button>
-              <button class="btn ghost" title="Re-generate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</div>
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</div>
+                <div class="mi-divider"></div>
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
 
@@ -696,8 +759,14 @@
               <span class="sub">approved by R. Zeng</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download</button>
-              <button class="btn warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download</div>
+                <div class="mi-divider"></div>
+                <div class="mi warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
 
@@ -719,8 +788,14 @@
               <span class="sub">approved by R. Zeng</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download</button>
-              <button class="btn warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download</div>
+                <div class="mi-divider"></div>
+                <div class="mi warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
 
@@ -743,8 +818,14 @@
               <span class="sub">by Statement Cron</span>
             </div>
             <div class="q-actions">
-              <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>View error</button>
-              <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>View error</div>
+                <div class="mi-divider"></div>
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
         </div>
@@ -953,8 +1034,15 @@
             <div><span class="badge pending"><span class="dot"></span>Pending approval</span></div>
             <div class="q-period">1 May, 01:07 UTC<span class="sub">by Statement Cron</span></div>
             <div class="q-actions">
-              <button class="btn">Preview</button>
-              <button class="btn primary">Approve & Publish</button>
+              <button class="kebab" onclick="toggleMenu(event, this)" title="Actions">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              <div class="action-menu">
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</div>
+                <div class="mi primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Approve & Publish</div>
+                <div class="mi-divider"></div>
+                <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Re-generate</div>
+              </div>
             </div>
           </div>
           <div class="queue-row">
@@ -1020,7 +1108,22 @@
     closeAllDropdowns();
     document.querySelector(`[data-status-dropdown="${key}"]`).classList.toggle('open');
   }
-  document.addEventListener('click', closeAllDropdowns);
+  document.addEventListener('click', () => {
+    closeAllDropdowns();
+    document.querySelectorAll('.action-menu').forEach(m => m.classList.remove('open'));
+  });
+
+  // ===== Row action kebab menu =====
+  function toggleMenu(e, btn) {
+    e.stopPropagation();
+    const menu = btn.nextElementSibling;
+    const wasOpen = menu.classList.contains('open');
+    document.querySelectorAll('.action-menu').forEach(m => m.classList.remove('open'));
+    if (!wasOpen) menu.classList.add('open');
+  }
+  document.querySelectorAll('.action-menu').forEach(m => {
+    m.addEventListener('click', e => e.stopPropagation());
+  });
 
   // Wire all dropdowns (entity + status)
   document.querySelectorAll('.ent-dropdown').forEach(dd => {
