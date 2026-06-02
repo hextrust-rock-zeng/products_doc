@@ -12,10 +12,22 @@
 
 ## 1. Problem & goal
 
-Hex Trust today produces monthly client statements **manually**
-(Customer Support + Operator compile from multiple internal systems,
-format in Excel / Word, send via email). This is slow, error-prone,
-inconsistent across regions, and doesn't scale.
+Hex Trust today has an inconsistent client-statement story:
+
+- **Custody statements** are auto-generated but **not exposed in the
+  client portal** — clients only receive them on request.
+- **OTC Trading and Loan statements** are **compiled manually** by
+  Customer Support + Operator from multiple internal systems (Excel /
+  Word) and emailed to clients.
+
+This is slow, error-prone, hard to audit, and creates regulatory
+exposure. The platform needs a unified flow that:
+
+1. Auto-generates **all three** statement types on the same cadence;
+2. Gives Customer Support a single **review-and-release** surface
+   (the HexAdmin queue);
+3. Surfaces every approved statement to clients via the **Reporting
+   Hub**, meeting MAS / VARA record-keeping and disclosure requirements.
 
 **Goal:** an automated platform that, on the 1st of each month,
 generates, reviews, publishes and notifies clients of their monthly
@@ -354,7 +366,7 @@ detecting transactions).
 | 2 | Simplified view variant — keep, drop, or defer to v2? | Business |
 | 3 | Auto-publish opt-in policy & UX | Customer Support |
 | 4 | Notification template wording (subject / sender / body) | Customer Support + Custody |
-| 5 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Compliance |
+| 5 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Custody + Compliance + Markets |
 
 ---
 
