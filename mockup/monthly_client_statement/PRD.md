@@ -15,7 +15,8 @@
 Hex Trust today has an inconsistent client-statement story:
 
 - **Custody statements** are auto-generated but **not exposed in the
-  client portal** — clients only receive them on request.
+  client portal** — Client Operations sends them to clients by email
+  each month.
 - **OTC Trading and Loan statements** are **compiled manually** by
   Customer Support + Operator from multiple internal systems (Excel /
   Word) and emailed to clients.
@@ -66,6 +67,7 @@ statement.
 | Item | Defer to |
 |---|---|
 | **Loan statement (entire service)** | v2 |
+| **Trading statement on Reporting Hub** (client UI) | v2 — in v1 Trading statements are generated in HexAdmin and emailed by Client Operations, but not surfaced in the client portal |
 | Simplified view variant | v2 (Detailed only in v1, pending business alignment) |
 | CSV export per statement | v2 |
 | Loan drawdown / repayment history | v2 (folded into the Loan-statement-deferred decision above) |
@@ -80,13 +82,14 @@ statement.
 |---|---|
 | **Admin** | Reporting Hub visible, all statements downloadable, receives email notifications |
 | **Admin Approver** | Same as Admin |
-| **Other user roles** | Reporting Hub hidden — no statement access |
+| **Other user roles** | Reporting Hub visible — view and download statements (no email notifications) |
 
 ### Hex Trust-side (HexAdmin)
 | Role | Capability |
 |---|---|
 | Customer Support | Review generated statements, approve to publish, trigger re-generation |
 | Operator | Same as Customer Support |
+| Other user roles | View and download statements (no approve / re-generate) |
 
 ## 5. Data model — Relationship & entity scoping
 
@@ -108,26 +111,28 @@ statement.
 graph TD
     R["Relationship<br/>(CRM-level)"]:::rel
     LE1["Legal Entity A"]:::le
-    LE2["Legal Entity B"]:::le
     R --> LE1
-    R --> LE2
-    LE1 --> E1["Enterprise<br/>(custody client)"]:::ent
-    LE1 --> T1["Trading Client<br/>(OTC client)"]:::ent
-    LE1 --> Lo1["Loans Client<br/>(loans client)"]:::ent
-    LE2 --> E2["Enterprise<br/>(custody client)"]:::ent
-    E1 --> S1["Custody Statement<br/>monthly"]:::stmt
-    T1 --> S2["OTC Trading Statement<br/>monthly"]:::stmt
-    Lo1 --> S3["Loan Statement<br/>monthly"]:::stmt
-    E2 --> S4["Custody Statement<br/>monthly"]:::stmt
+    LE1 --> E1["Enterprise 1<br/>e.g. SG vaults"]:::ent
+    LE1 --> E2["Enterprise 2<br/>e.g. MENA vaults"]:::ent
+    LE1 --> E3["Enterprise 3<br/>e.g. HK vaults"]:::ent
+    LE1 --> T1["Trading Client<br/>(OTC)"]:::ent
+    LE1 --> Lo1["Loans Client<br/>(v2)"]:::ent
+    E1 --> S1["Custody_Ent1_Statement"]:::stmt
+    E2 --> S2["Custody_Ent2_Statement"]:::stmt
+    E3 --> S3["Custody_Ent3_Statement"]:::stmt
+    T1 --> S4["Trading_TC_Statement"]:::stmt
+    Lo1 --> S5["Loans_LC_Statement (v2)"]:::stmt
     classDef rel fill:#0A2342,stroke:#0A2342,color:#fff
     classDef le fill:#EEF2F7,stroke:#1F6FB2,color:#0A2342
     classDef ent fill:#1F6FB2,stroke:#0A2342,color:#fff
     classDef stmt fill:#DCFCE7,stroke:#15803D,color:#15803D
 ```
 
-*One Relationship → many Legal Entities → each entity carries 0..N of
-{Enterprise / Trading Client / Loans Client} → one statement per entity
-per service per month.*
+*One custody client (legal entity) can have **multiple Enterprises**
+(e.g. one per jurisdiction or per booking vault) — each Enterprise
+generates **its own Custody statement** monthly. The same legal entity
+may also carry one Trading Client (→ Trading statement) and one Loans
+Client (→ Loan statement, v2).*
 
 ## 6. UX — Reporting Hub
 
@@ -320,7 +325,6 @@ detecting transactions).
   can be used to (re-)generate older statements if needed**.
 - Old and new client-statement modules **can run in parallel for the
   first few months** if needed.
-- No client comms needed before launch.
 
 ## 9. Edge cases
 
@@ -380,6 +384,7 @@ detecting transactions).
 | 3 | Auto-publish opt-in policy & UX | Customer Support |
 | 4 | Notification template wording (subject / sender / body) | Customer Support + Custody |
 | 5 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Custody + Compliance + Markets |
+| 6 | UI design — final wording, columns and section layout on sample client statements (Custody + Trading) | Product + Custody + Markets |
 
 ---
 
