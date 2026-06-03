@@ -47,8 +47,14 @@ statement.
   is deferred to v2 — pending business alignment.
 - Generation cron at **00:00 UTC** on the 1st of each month covering
   the prior calendar month (00:00:00–23:59:59 UTC)
-- HexAdmin **review + manual approval** flow before each statement is
-  published to the client portal
+- **Pre-creation checks** run before every statement is rendered
+  (negative balance, mismatched balance, etc.). On failure → **Slack
+  alert to Production Support + Customer Support**; statement is not
+  created.
+- **Auto-publish by default** once checks pass. A configurable
+  **manual-review opt-out list** holds those clients' statements in
+  *Pending Approval* for Customer Support to review and publish in
+  HexAdmin.
 - Client-facing **Reporting Hub** in HexSafe (full-page takeover from
   the avatar menu) with multi-select download and bulk ZIP export
 - Email notification to Admin + Admin Approver of the Relationship
@@ -71,7 +77,6 @@ statement.
 | Simplified view variant | v2 (Detailed only in v1, pending business alignment) |
 | CSV export per statement | v2 |
 | Loan drawdown / repayment history | v2 (folded into the Loan-statement-deferred decision above) |
-| Auto-publish (no manual review) | Post-launch, per-client opt-in |
 | Backfill of historical periods | Out — historical manual PDFs remain accessible separately |
 | Referral fees on statement | Out — BD-owned, separate workflow |
 
@@ -141,7 +146,7 @@ Two interactive mockups (open in any browser):
 | Persona | Mockup | What's inside |
 |---|---|---|
 | **Client** (HexSafe Reporting Hub) | [Open client mockup](https://htmlpreview.github.io/?https://github.com/hextrust-rock-zeng/products_doc/blob/feature/monthly-statement-mockup/mockup/monthly_client_statement/statements_mockup.html) | Full-page Reporting Hub, month-grouped statements list, multi-select download. *Mockup view* dropdown (bottom-right) switches between Default · Bulk-selected · Empty. |
-| **HexAdmin** (Customer Support / Operator) | [Open HexAdmin mockup](https://htmlpreview.github.io/?https://github.com/hextrust-rock-zeng/products_doc/blob/feature/monthly-statement-mockup/mockup/monthly_client_statement/hexadmin_statements_mockup.html) | Fee Calculation › Client Statements with **Custody · Trading · Loans** sub-tabs. Each sub-tab supports All-Entities or specific-entity selection + month picker + Generate. Queue below shows draft / pending / published statements with Preview · Approve & Publish · Re-issue. |
+| **HexAdmin** (Customer Support / Operator) | [Open HexAdmin mockup](https://htmlpreview.github.io/?https://github.com/hextrust-rock-zeng/products_doc/blob/feature/monthly-statement-mockup/mockup/monthly_client_statement/hexadmin_statements_mockup.html) | Fee Calculation › Client Statements with **Custody · Trading · Loans** sub-tabs. Search by Enterprise / Month / Status. Queue shows **Auto-Published** rows (default), **Pending Approval** rows for opt-out-list clients, and **Failed** rows when pre-creation checks fail. Row actions (kebab): Preview · Approve & Publish · Download · Re-generate. |
 
 **Placement:** new top-level entry in the user/avatar dropdown menu,
 between **Settings** and **Help Center**.
@@ -178,13 +183,18 @@ Reference layout: see `sample-statements/` for Simplified + Detailed
 PDF and DOCX per service. **Naming convention** (PDF filename + display title in HexAdmin /
 Reporting Hub):
 
-- Custody: `Custody_<EntityName>_Statement`
-- OTC Trading: `Trading_<EntityName>_Statement`
-- Loans (v2): `Loans_<EntityName>_Statement`
+- Custody: `Custody_<EnterpriseName>+<Custodian>_<YYYY>_<MM>.pdf`
+- OTC Trading: `Trading_<TradingClientName>+<Custodian>_<YYYY>_<MM>.pdf`
+- Loans (v2): `Loans_<LoansClientName>+<Custodian>_<YYYY>_<MM>.pdf`
 
-`<EntityName>` is the legal entity name with spaces stripped
-(e.g. `HTMarketsMENAFZE`). Period (`YYYY-MM`) may be appended at
-download time.
+`<EnterpriseName>` / `<TradingClientName>` / `<LoansClientName>` =
+the legal-entity / client name with spaces stripped.
+`<Custodian>` = the Hex Trust legal entity holding the assets (e.g.
+`HexSafeMENA`, `HTMarketsSVG`, `HexTrustLoans`).
+
+Examples:
+- `Custody_HTMarketsMENAFZE+HexSafeMENA_2026_04.pdf`
+- `Trading_MeridianCapitalPteLtd+HTMarketsSVG_2026_04.pdf`
 
 Each statement opens with a shared **Summary
 page** (period, snapshot timestamp, client name, issuing entity, MAS
@@ -267,33 +277,34 @@ with explicit Trade-ID linkage, not duplicated bookings.
                  └──────┬──────────────┘
                         │
                  ┌──────▼──────────────────────┐
-                 │ Fetch from source services: │
-                 │  • Custody (positions, txs) │
-                 │  • Markets (trades, settle) │
-                 │  • Loans (positions, int.)  │
-                 │  • Asset Evaluator (prices) │
-                 │  • Travel Rule status       │
-                 │  • External Positions       │
+                 │ Fetch from source services  │
                  └──────┬──────────────────────┘
                         │
-                 ┌──────▼─────────────┐
-                 │ Render PDF (and    │  ← single source-of-truth
-                 │   internal preview)│     renderer (no DOCX in v1)
-                 └──────┬─────────────┘
+                 ┌──────▼──────────────────────────┐
+                 │ PRE-CREATION CHECKS             │
+                 │  • Negative balance?            │   FAIL ──► ┌──────────────┐
+                 │  • Opening/closing mismatch?    │ ─────────► │ Slack alert  │
+                 │  • Missing prices, etc.         │            │ to Prod      │
+                 └──────┬──────────────────────────┘            │ Support +    │
+                        │ PASS                                  │ Customer     │
+                        ▼                                       │ Support      │
+                 ┌──────────────────────┐                       └──────────────┘
+                 │ Render PDF           │  (no statement created on FAIL)
+                 └──────┬───────────────┘
                         │
-                 ┌──────▼─────────────┐
-                 │ Store as DRAFT in  │  ← appears in HexAdmin queue
-                 │ HexAdmin queue     │
-                 └──────┬─────────────┘
-                        │
-                 ┌──────▼─────────────┐
-                 │ MANUAL APPROVAL    │  ← Customer Support reviews + approves
-                 └──────┬─────────────┘
-                        │
-                 ┌──────▼─────────────┐
-                 │ PUBLISHED →        │  ← visible in Reporting Hub
-                 │   client portal    │     + email to Admins
-                 └────────────────────┘
+                        ├── client on opt-out list? ─── YES ──► ┌────────────────┐
+                        │                                       │ Pending        │
+                        │ NO (default)                          │ Approval       │
+                        ▼                                       │ (CS reviews +  │
+                 ┌──────────────────────┐                       │  publishes in  │
+                 │ AUTO-PUBLISHED →     │                       │  HexAdmin)     │
+                 │  Reporting Hub +     │                       └──────┬─────────┘
+                 │  email to Admins     │                              │
+                 └──────────────────────┘                              ▼
+                                                        ┌─────────────────────┐
+                                                        │ PUBLISHED → portal  │
+                                                        │  + email to Admins  │
+                                                        └─────────────────────┘
 ```
 
 ### Re-issue flow
@@ -315,10 +326,19 @@ detecting transactions).
 - Cron fires at **00:00 UTC on the 1st** of the next month
 - All timestamps in statements are UTC
 
-### Approval gate
-- **Mandatory manual approval per statement** in v1
-- No auto-publish; post-launch re-evaluation may add an opt-in
-  auto-publish toggle per client
+### Pre-creation checks + publication
+- **Pre-creation checks** run automatically (negative balance,
+  opening/closing mismatch, missing prices, etc.). Pass → render PDF.
+  Fail → no statement created; **Slack alert** to Production Support
+  + Customer Support.
+- **Auto-publish by default** for clients not on the manual-review
+  opt-out list — statement renders → published to Reporting Hub →
+  email notification sent.
+- **Manual-review opt-out list** — clients on this list have their
+  statements held in *Pending Approval*. Customer Support reviews the
+  draft in HexAdmin and clicks *Approve & Publish*.
+- Opt-out list is managed in HexAdmin (per-client toggle). Default
+  state: auto-publish ON.
 
 ### Backfill
 - Launch month forward only by default, **but new logic + existing data
@@ -340,7 +360,8 @@ detecting transactions).
 
 | Trigger | Recipients | Channel | Content |
 |---|---|---|---|
-| Statement published | Admin + Admin Approver of the Relationship | Email | "Your statements for {Month} are ready" + deep-link |
+| Statement published (auto or manual) | Admin + Admin Approver of the Relationship | Email | "Your statements for {Month} are ready" + deep-link |
+| Pre-creation check failed | Production Support + Customer Support | Slack | "Statement gen failed for {Client} / {Service} / {Month} — {reason}" + HexAdmin link |
 
 ## 11. Retention & access
 
@@ -381,7 +402,8 @@ detecting transactions).
 |---|---|---|
 | 1 | Staking commission: should we put on client statement? if yes, how can we get the commission? | Business |
 | 2 | Simplified view variant — keep, drop, or defer to v2? | Business |
-| 3 | Auto-publish opt-in policy & UX | Customer Support |
+| 3 | Manual-review **opt-out list** — management UX in HexAdmin, who can add / remove, audit | Customer Support |
+| 7 | Pre-creation check rule-set — full catalogue of checks (negative balance, mismatch tolerance, missing price thresholds, etc.) + Slack channel routing | Tech + Customer Support |
 | 4 | Notification template wording (subject / sender / body) | Customer Support + Custody |
 | 5 | Per-jurisdiction disclosure text (issuing-entity mapping table) | Custody + Compliance + Markets |
 | 6 | UI design — final wording, columns and section layout on sample client statements (Custody + Trading) | Product + Custody + Markets |
