@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>On-Ramp UX Mockup — HubPay (client) integrating Hex Trust on-ramp API</title>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --line: #e6e9f0;
+    --text: #1a1f36;
+    --muted: #5b6478;
+    --accent: #5b6cff;
+    --accent-soft: #eef0ff;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --code-bg: #1a1f36;
+    --code-text: #d6dcec;
+    --phone-bg: linear-gradient(160deg, #f5f7fb 0%, #e9ecf5 100%);
+    --hubpay-blue: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header.page-header {
+    margin-bottom: 32px;
+    padding: 32px;
+    background: linear-gradient(135deg, #5b6cff 0%, #8b5cf6 100%);
+    border-radius: 16px;
+    color: white;
+  }
+  header.page-header h1 { font-size: 28px; margin: 0 0 8px; font-weight: 700; }
+  header.page-header p.subtitle { font-size: 15px; margin: 0; opacity: 0.92; }
+  header.page-header .meta {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.25);
+    font-size: 13px;
+    opacity: 0.92;
+  }
+  header.page-header .meta b { font-weight: 600; }
+
+  .persona-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 40px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .persona-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fb923c 0%, #ec4899 100%);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 24px; font-weight: 700;
+  }
+  .persona-text h2 { margin: 0 0 4px; font-size: 18px; }
+  .persona-text p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 32px;
+    margin-bottom: 48px;
+    align-items: start;
+  }
+
+  .stage-num {
+    position: absolute;
+    top: -14px; left: -14px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+    box-shadow: 0 4px 12px rgba(91, 108, 255, 0.35);
+  }
+
+  /* Phone mockup */
+  .phone-wrap { position: relative; padding-top: 14px; padding-left: 14px; }
+  .phone {
+    width: 320px;
+    background: var(--phone-bg);
+    border-radius: 36px;
+    border: 8px solid #1a1f36;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(26,31,54,0.15);
+    position: relative;
+    min-height: 540px;
+  }
+  .phone-notch {
+    background: #1a1f36;
+    height: 24px;
+    width: 120px;
+    margin: 0 auto;
+    border-radius: 0 0 14px 14px;
+    position: relative; top: 0;
+  }
+  .phone-content {
+    padding: 18px 18px 22px;
+    height: calc(100% - 24px);
+  }
+
+  /* HubPay app chrome */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .hubpay-logo {
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--hubpay-blue);
+    letter-spacing: -0.3px;
+  }
+  .app-header .balance {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .app-back { font-size: 14px; color: var(--accent); cursor: pointer; }
+
+  .app-title {
+    font-size: 19px; font-weight: 700;
+    margin: 12px 0 4px;
+  }
+  .app-subtitle {
+    font-size: 13px; color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  /* Buttons */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 0;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+  .btn.secondary {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .btn.full {
+    background: var(--ok); color: white;
+  }
+
+  /* Pair picker */
+  .pair-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .pair-card.selected { border-color: var(--accent); border-width: 2px; padding: 13px; }
+  .pair-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #2775ca 0%, #5b6cff 100%);
+    color: white; font-weight: 700; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pair-icon.usdt { background: linear-gradient(135deg, #26a17b 0%, #16a34a 100%); }
+  .pair-text { flex: 1; margin-left: 12px; }
+  .pair-name { font-size: 14px; font-weight: 600; }
+  .pair-chain { font-size: 11px; color: var(--muted); }
+  .pair-rate { font-size: 11px; color: var(--muted); text-align: right; }
+
+  /* Amount input */
+  .amount-input {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .amount-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .amount-value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .amount-asset { font-size: 14px; color: var(--muted); margin-left: 6px; }
+
+  .quote-card {
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 12px 0;
+  }
+  .quote-row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+  .quote-row.total { font-weight: 700; font-size: 14px; padding-top: 8px; margin-top: 8px; border-top: 1px dashed #c7cbf0; }
+  .quote-row .label { color: var(--muted); }
+  .quote-row .value { color: var(--text); }
+
+  .countdown {
+    display: inline-flex;
+    align-items: center; gap: 6px;
+    background: white;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .countdown::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.3 } }
+
+  /* Bank instructions */
+  .bank-options-tabs {
+    display: flex; gap: 4px;
+    background: var(--line);
+    border-radius: 10px; padding: 3px;
+    margin-bottom: 12px;
+  }
+  .bank-tab {
+    flex: 1; text-align: center;
+    padding: 8px 4px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    color: var(--muted); cursor: pointer;
+  }
+  .bank-tab.active { background: white; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+  .bank-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .bank-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 12px; }
+  .bank-row:last-child { border: 0; }
+  .bank-row .label { color: var(--muted); }
+  .bank-row .value { font-family: 'SF Mono', Consolas, monospace; font-weight: 600; }
+  .bank-row .copy-icon { color: var(--accent); font-size: 11px; margin-left: 4px; cursor: pointer; }
+
+  /* Status tracker */
+  .timeline {
+    margin: 14px 0;
+  }
+  .timeline-step {
+    display: flex; gap: 12px;
+    padding: 10px 0;
+    align-items: center;
+  }
+  .timeline-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--line);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .timeline-dot.done { background: var(--ok); }
+  .timeline-dot.done::after {
+    content: '✓'; color: white; font-size: 12px;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .timeline-dot.active { background: var(--accent); animation: pulse-bg 1.5s infinite; }
+  .timeline-dot.active::after {
+    content: ''; position: absolute; top: -3px; left: -3px;
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--accent); opacity: 0.4;
+    animation: ripple 1.5s infinite;
+  }
+  @keyframes pulse-bg { 0%, 100% { opacity: 1 } 50% { opacity: 0.6 } }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  .timeline-line {
+    width: 2px; height: 18px;
+    background: var(--line);
+    margin: -10px 0 -10px 8px;
+  }
+  .timeline-line.done { background: var(--ok); }
+  .timeline-text { flex: 1; }
+  .timeline-text .label { font-size: 12px; font-weight: 600; }
+  .timeline-text .time { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+  /* Success state */
+  .success-checkmark {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: var(--ok);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    margin: 24px auto 16px;
+    box-shadow: 0 8px 24px rgba(22, 163, 74, 0.35);
+  }
+  .success-amount { font-size: 28px; font-weight: 700; text-align: center; }
+  .success-amount .ticker { color: var(--ok); }
+  .success-sub { font-size: 13px; color: var(--muted); text-align: center; margin-top: 4px; }
+  .tx-link {
+    display: block; text-align: center;
+    margin-top: 16px; padding: 10px;
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 10px;
+    font-size: 12px; font-weight: 600;
+    font-family: 'SF Mono', Consolas, monospace;
+    word-break: break-all;
+    text-decoration: none;
+  }
+
+  /* Right column: API panel */
+  .api-panel {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px 28px;
+  }
+  .api-panel h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .api-panel .stage-sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 18px;
+  }
+  .api-block {
+    margin: 16px 0;
+  }
+  .api-block-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .api-block-label.req::before {
+    content: '→'; color: var(--accent); font-size: 16px; font-weight: 700;
+  }
+  .api-block-label.res::before {
+    content: '←'; color: var(--ok); font-size: 16px; font-weight: 700;
+  }
+  .api-block-label.hook::before {
+    content: '🔔'; font-size: 14px;
+  }
+  .api-block pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 14px 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .api-block pre .key { color: #a5b4fc; }
+  .api-block pre .str { color: #86efac; }
+  .api-block pre .num { color: #fbbf24; }
+  .api-block pre .ev { color: #f472b6; font-weight: 600; }
+  .api-block pre .comm { color: #6b7280; font-style: italic; }
+
+  .endpoint-tag {
+    display: inline-block;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .endpoint-tag .method.get { color: #86efac; }
+  .endpoint-tag .method.post { color: #fbbf24; }
+
+  .what-happens {
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .what-happens b { color: var(--accent); }
+
+  hr.stage-sep {
+    border: 0;
+    height: 1px;
+    background: var(--line);
+    margin: 0 0 48px;
+  }
+
+  footer.page-footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+  }
+
+  @media (max-width: 900px) {
+    .stage { grid-template-columns: 1fr; }
+    .phone-wrap { margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page-header">
+  <h1>🔁 On-Ramp UX Mockup</h1>
+  <p class="subtitle">What an end user sees when buying USDC through HubPay, powered by the Hex Trust On-Ramp API.</p>
+  <div class="meta">
+    <b>Audience:</b> stakeholder & client review &nbsp;·&nbsp;
+    <b>Persona:</b> Alice, a HubPay customer buying 100,000 USDC with USD &nbsp;·&nbsp;
+    <b>Companion artifacts:</b> On-Ramp API spec · Webhook Integration Guide
+  </div>
+</header>
+
+<div class="persona-box">
+  <div class="persona-avatar">A</div>
+  <div class="persona-text">
+    <h2>Alice — HubPay customer</h2>
+    <p>Treasury operator at a SEA fintech. Holds USD with a US correspondent bank. Wants USDC delivered on Ethereum to her treasury wallet. Walks through HubPay's app, which calls the Hex Trust on-ramp API under the hood. End-to-end time: ~24 hours (limited by SWIFT wire).</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- STAGE 1 — Discovery: pick the pair -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">1</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="hubpay-logo">hubpay</div>
+          <div class="balance">$ 250,000 available</div>
+        </div>
+        <div class="app-title">Buy stablecoins</div>
+        <div class="app-subtitle">Select what you want to buy with your USD</div>
+
+        <div class="pair-card selected">
+          <div class="pair-icon">$</div>
+          <div class="pair-text">
+            <div class="pair-name">USDC · Ethereum</div>
+            <div class="pair-chain">Min $10 · Max $2,000,000</div>
+          </div>
+          <div class="pair-rate">~1:1<br>USD → USDC</div>
+        </div>
+        <div class="pair-card">
+          <div class="pair-icon">$</div>
+          <div class="pair-text">
+            <div class="pair-name">USDC · Solana</div>
+            <div class="pair-chain">Min $10 · Max $2,000,000</div>
+          </div>
+          <div class="pair-rate">~1:1</div>
+        </div>
+        <div class="pair-card">
+          <div class="pair-icon usdt">T</div>
+          <div class="pair-text">
+            <div class="pair-name">USDT · Ethereum</div>
+            <div class="pair-chain">Min $10 · Max $2,000,000</div>
+          </div>
+          <div class="pair-rate">~1:1</div>
+        </div>
+
+        <button class="btn">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 1 — Discovery</h3>
+    <p class="stage-sub">HubPay's app fetches the supported pairs for Alice's onboarded jurisdiction (SVG). The result is jurisdiction-scoped server-side, so Alice only sees pairs she's actually licensed for.</p>
+
+    <div class="api-block">
+      <div class="api-block-label req">REQUEST</div>
+      <pre><span class="endpoint-tag"><span class="method get">GET</span> /onramp/availablePairs</span>
+<span class="comm"># Headers:</span>
+<span class="key">X-API-KEY</span>:        hubpay-api-key
+<span class="key">X-Client-Id</span>:      532e2873-3295-4fad-be8e-0a4c0c4647b2
+<span class="key">X-Enterprise-Id</span>:  8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+<span class="key">Authorization</span>:    Bearer &lt;signed-JWT&gt;</pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label res">RESPONSE — 200 OK</div>
+      <pre>[
+  {
+    <span class="key">"fiatCurrency"</span>:  <span class="str">"USD"</span>,
+    <span class="key">"cryptoCurrency"</span>: <span class="str">"USDC"</span>,
+    <span class="key">"fiatMinAmount"</span>:  <span class="num">10</span>,
+    <span class="key">"fiatMaxAmount"</span>:  <span class="num">2000000</span>,
+    <span class="key">"supportedChains"</span>: [
+      { <span class="key">"chainId"</span>: <span class="str">"1"</span>,    <span class="key">"chainName"</span>: <span class="str">"ethereum"</span> },
+      { <span class="key">"chainId"</span>: <span class="str">"sol"</span>,  <span class="key">"chainName"</span>: <span class="str">"solana"</span>   }
+    ]
+  },
+  { <span class="key">"fiatCurrency"</span>: <span class="str">"USD"</span>, <span class="key">"cryptoCurrency"</span>: <span class="str">"USDT"</span>, ... }
+]</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> HubPay's frontend caches the pair list. Alice picks <b>USDC · Ethereum</b> from the rendered list. No webhook fires at this stage — it's a read-only discovery call.
+    </div>
+  </div>
+</div>
+
+<hr class="stage-sep">
+
+<!-- ============================================================ -->
+<!-- STAGE 2 — Quote: enter amount, see locked rate -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">2</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="app-back">← Back</div>
+          <div class="balance">USDC · Ethereum</div>
+        </div>
+        <div class="app-title">How much USDC?</div>
+        <div class="app-subtitle">Enter the amount you want to receive</div>
+
+        <div class="amount-input">
+          <div class="amount-label">YOU PAY (USD)</div>
+          <div class="amount-value">100,000.00<span class="amount-asset">USD</span></div>
+        </div>
+
+        <div class="quote-card">
+          <div class="quote-row"><span class="label">Rate (locked)</span><span class="value">1 USD = 0.99950 USDC</span></div>
+          <div class="quote-row"><span class="label">Hex Trust fee</span><span class="value">included in rate (0.05%)</span></div>
+          <div class="quote-row"><span class="label">Network fee</span><span class="value">Hex Trust covers</span></div>
+          <div class="quote-row total"><span class="label">You receive</span><span class="value">99,950.00 USDC</span></div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin: 14px 0 4px;">
+          <span class="countdown">Quote valid for 4:32</span>
+          <span style="font-size: 11px; color: var(--muted);">Confirm to lock in this rate</span>
+        </div>
+
+        <button class="btn">Accept quote</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 2 — Quote</h3>
+    <p class="stage-sub">HubPay's backend requests a live quote bound to the pair × chain combination. Hex Trust polls its LP (Ripple), applies the spread, and returns a quote valid for 5 minutes. Alice sees a locked rate before committing.</p>
+
+    <div class="api-block">
+      <div class="api-block-label req">REQUEST</div>
+      <pre><span class="endpoint-tag"><span class="method post">POST</span> /onramp/getQuote</span>
+<span class="comm"># Body:</span>
+{
+  <span class="key">"fiatCurrency"</span>:   <span class="str">"USD"</span>,
+  <span class="key">"cryptoCurrency"</span>: <span class="str">"USDC"</span>,
+  <span class="key">"chainId"</span>:        <span class="str">"1"</span>,
+  <span class="key">"fiatAmount"</span>:     <span class="str">"100000.00"</span>
+}</pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label res">RESPONSE — 200 OK</div>
+      <pre>{
+  <span class="key">"quoteId"</span>:         <span class="str">"73797374-656d-4000-8000-00008badf00d"</span>,
+  <span class="key">"fiatCurrency"</span>:    <span class="str">"USD"</span>,
+  <span class="key">"cryptoCurrency"</span>:  <span class="str">"USDC"</span>,
+  <span class="key">"chainId"</span>:         <span class="str">"1"</span>,
+  <span class="key">"chainName"</span>:       <span class="str">"ethereum"</span>,
+  <span class="key">"fiatAmount"</span>:      <span class="str">"100000.00"</span>,
+  <span class="key">"cryptoAmount"</span>:    <span class="str">"99950.00"</span>,
+  <span class="key">"ratio"</span>:           <span class="str">"0.99950"</span>,
+  <span class="key">"inverseRatio"</span>:    <span class="str">"1.00050"</span>,
+  <span class="key">"validTimestamp"</span>:  <span class="num">1741123756789</span>
+}</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> The rate is firm at <code>0.99950</code> for 5 minutes. HubPay's UI shows a countdown timer. Alice's wire (still days away) will execute at exactly this rate — Hex Trust absorbs any LP drift during the wait. No webhook yet — quote is informational only.
+    </div>
+  </div>
+</div>
+
+<hr class="stage-sep">
+
+<!-- ============================================================ -->
+<!-- STAGE 3 — Accept quote: bank instructions -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">3</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="app-back">← Back</div>
+          <div class="balance">Order #...8badf00d</div>
+        </div>
+        <div class="app-title">Wire $100,000.00</div>
+        <div class="app-subtitle">Pick a bank to wire to. Match your originating bank for fastest clearing.</div>
+
+        <div class="bank-options-tabs">
+          <div class="bank-tab active">Std. Chartered</div>
+          <div class="bank-tab">BCB Bank</div>
+        </div>
+
+        <div class="bank-card">
+          <div class="bank-row"><span class="label">Beneficiary</span><span class="value">Hex Trust Markets Ltd</span></div>
+          <div class="bank-row"><span class="label">Bank</span><span class="value">Standard Chartered Bank</span></div>
+          <div class="bank-row"><span class="label">SWIFT</span><span class="value">SCBLUS33XXX <span class="copy-icon">⧉</span></span></div>
+          <div class="bank-row"><span class="label">Routing #</span><span class="value">026002561 <span class="copy-icon">⧉</span></span></div>
+          <div class="bank-row"><span class="label">Account</span><span class="value">0123456789...0123 <span class="copy-icon">⧉</span></span></div>
+          <div class="bank-row"><span class="label">Currency</span><span class="value">USD</span></div>
+        </div>
+
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px; font-size: 12px; margin-bottom: 12px;">
+          <b style="color: var(--warn);">⏳ Wire by Mar 6, 22:24 UTC</b><br>
+          <span style="color: var(--muted);">Order expires in 48 hours. After that, you'll need a fresh quote.</span>
+        </div>
+
+        <button class="btn full">I've sent the wire</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 3 — Accept quote, receive bank instructions</h3>
+    <p class="stage-sub">When Alice taps "Accept quote," HubPay calls <code>acceptQuote</code> with the <code>quoteId</code>. Hex Trust binds the rate, resolves the crypto destination from Alice's pre-whitelisted wallet, and returns <b>multiple bank accounts</b> she can choose from.</p>
+
+    <div class="api-block">
+      <div class="api-block-label req">REQUEST</div>
+      <pre><span class="endpoint-tag"><span class="method post">POST</span> /onramp/acceptQuote</span>
+{
+  <span class="key">"quoteId"</span>:       <span class="str">"73797374-656d-4000-8000-00008badf00d"</span>,
+  <span class="key">"clientOrderId"</span>: <span class="str">"hubpay-onramp-12345"</span>
+}</pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label res">RESPONSE — 200 OK</div>
+      <pre>{
+  <span class="key">"orderId"</span>:      <span class="str">"73797374-656d-4000-0000-00008badf00d"</span>,
+  <span class="key">"orderStatus"</span>:  <span class="str">"ORDER_CREATED"</span>,
+  <span class="key">"lockedRate"</span>:   <span class="str">"0.99950"</span>,
+  <span class="key">"expiresAt"</span>:    <span class="num">1741296256789</span>,    <span class="comm"># +48h</span>
+  <span class="key">"cryptoDestination"</span>: <span class="str">"0x4f5C...0bF"</span>, <span class="comm"># Alice's whitelisted wallet</span>
+  <span class="key">"chainId"</span>:      <span class="str">"1"</span>,
+  <span class="key">"bankAccounts"</span>: [
+    { <span class="key">"bankName"</span>: <span class="str">"Standard Chartered Bank"</span>, <span class="key">"swiftCode"</span>: <span class="str">"SCBLUS33XXX"</span>, ... },
+    { <span class="key">"bankName"</span>: <span class="str">"BCB Bank"</span>,                <span class="key">"routingNumber"</span>: <span class="str">"021000089"</span>, ... }
+  ]
+}</pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label hook">WEBHOOK — fires immediately</div>
+      <pre>{
+  <span class="key">"payload"</span>: {
+    <span class="key">"eventType"</span>:      <span class="ev">"ORDER_CREATED"</span>,
+    <span class="key">"id"</span>:             <span class="str">"11e0177f-...-1c46cb66f600"</span>,
+    <span class="key">"eventTriggerAt"</span>: <span class="str">"2026-03-04T22:24:16.789Z"</span>,
+    <span class="key">"retryNum"</span>:       <span class="num">0</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"orderId"</span>:      <span class="str">"73797374-...-00008badf00d"</span>,
+      <span class="key">"clientOrderId"</span>: <span class="str">"hubpay-onramp-12345"</span>,
+      <span class="key">"order"</span>: { <span class="comm">... full order snapshot ...</span> }
+    },
+    <span class="key">"metadata"</span>: { <span class="key">"apiVersion"</span>: <span class="str">"1.0"</span>, <span class="key">"environment"</span>: <span class="str">"production"</span> }
+  },
+  <span class="key">"signature"</span>: <span class="str">"FAKE1ITi...Q=="</span>
+}</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> The order is now <code>ORDER_CREATED</code>. Alice's HubPay app persists the <code>orderId</code> and shows the bank instructions. She copies the SWIFT details into her bank's portal and sends the wire. The 48-hour countdown starts now.
+    </div>
+  </div>
+</div>
+
+<hr class="stage-sep">
+
+<!-- ============================================================ -->
+<!-- STAGE 4 — Waiting: status tracker -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">4</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="hubpay-logo">hubpay</div>
+          <div class="balance">Order #...8badf00d</div>
+        </div>
+        <div class="app-title">Waiting for your wire</div>
+        <div class="app-subtitle">SWIFT wires usually clear within 1–2 business days. We'll notify you the moment it arrives.</div>
+
+        <div class="timeline">
+          <div class="timeline-step">
+            <div class="timeline-dot done"></div>
+            <div class="timeline-text">
+              <div class="label">Order created</div>
+              <div class="time">Mar 4, 22:24 UTC</div>
+            </div>
+          </div>
+          <div class="timeline-line done"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot active"></div>
+            <div class="timeline-text">
+              <div class="label">Awaiting your wire</div>
+              <div class="time">In progress · expires Mar 6, 22:24 UTC</div>
+            </div>
+          </div>
+          <div class="timeline-line"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot"></div>
+            <div class="timeline-text">
+              <div class="label">Trade executed</div>
+              <div class="time">Pending</div>
+            </div>
+          </div>
+          <div class="timeline-line"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot"></div>
+            <div class="timeline-text">
+              <div class="label">USDC delivered</div>
+              <div class="time">Pending</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: var(--accent-soft); border-radius: 10px; padding: 14px; margin-top: 8px;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Locked rate</div>
+          <div style="font-size: 11px; color: var(--muted);">1 USD = 0.99950 USDC<br>You'll receive <b>99,950.00 USDC</b> regardless of market movement</div>
+        </div>
+
+        <button class="btn secondary" style="margin-top: 16px;">View order details</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 4 — Waiting for fiat</h3>
+    <p class="stage-sub">During the 1–2 day SWIFT clearing window, HubPay's UI shows a live status tracker. Behind the scenes, HubPay listens for webhooks; for resilience, they can also poll <code>orderStatus</code>.</p>
+
+    <div class="api-block">
+      <div class="api-block-label req">OPTIONAL POLL</div>
+      <pre><span class="endpoint-tag"><span class="method get">GET</span> /onramp/orderStatus?orderId=73797374-...</span></pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label res">RESPONSE — 200 OK</div>
+      <pre>{
+  <span class="key">"orderId"</span>:                  <span class="str">"73797374-...-00008badf00d"</span>,
+  <span class="key">"orderStatus"</span>:              <span class="ev">"ORDER_CREATED"</span>,
+  <span class="key">"fiatAmount"</span>:               <span class="str">"100000.00"</span>,
+  <span class="key">"cryptoAmount"</span>:             <span class="str">"99950.00"</span>,
+  <span class="key">"lockedRate"</span>:               <span class="str">"0.99950"</span>,
+  <span class="key">"expiresAt"</span>:                <span class="num">1741296256789</span>,
+  <span class="key">"fiatReceivedAt"</span>:           null,
+  <span class="key">"tradeExecutedAt"</span>:          null,
+  <span class="key">"settledAt"</span>:                null,
+  <span class="key">"fiatDepositTransactions"</span>:  [],
+  <span class="key">"cryptoSettlementTransactions"</span>: []
+}</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> Alice's view is purely passive. HubPay can reconcile state via polling, but the primary signal is the webhook stream. The next event will fire when ops at Hex Trust confirms the wire arrived.
+    </div>
+  </div>
+</div>
+
+<hr class="stage-sep">
+
+<!-- ============================================================ -->
+<!-- STAGE 5 — Fiat received & trade executed -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">5</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="hubpay-logo">hubpay</div>
+          <div class="balance">Order #...8badf00d</div>
+        </div>
+        <div class="app-title">Wire confirmed ✓</div>
+        <div class="app-subtitle">We've received your $100,000 USD. Locking in your trade now…</div>
+
+        <div class="timeline">
+          <div class="timeline-step">
+            <div class="timeline-dot done"></div>
+            <div class="timeline-text">
+              <div class="label">Order created</div>
+              <div class="time">Mar 4, 22:24 UTC</div>
+            </div>
+          </div>
+          <div class="timeline-line done"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot done"></div>
+            <div class="timeline-text">
+              <div class="label">Wire received</div>
+              <div class="time">Mar 5, 22:26 UTC · SCB20260527000123</div>
+            </div>
+          </div>
+          <div class="timeline-line done"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot active"></div>
+            <div class="timeline-text">
+              <div class="label">Sending USDC to your wallet</div>
+              <div class="time">In progress · ETA ~2 minutes</div>
+            </div>
+          </div>
+          <div class="timeline-line"></div>
+          <div class="timeline-step">
+            <div class="timeline-dot"></div>
+            <div class="timeline-text">
+              <div class="label">USDC delivered</div>
+              <div class="time">Pending</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px; padding: 12px; margin-top: 12px; font-size: 12px;">
+          <b style="color: var(--ok);">✓ Bank confirmed</b><br>
+          <span style="color: var(--muted);">$100,000.00 USD received via SWIFT. Locked-in rate applied: 0.99950.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 5 — Fiat received → trade executed</h3>
+    <p class="stage-sub">Hex Trust ops confirms Alice's wire matched her registered originating bank. The DvP gate releases — settlement engine debits stablecoin inventory at the locked rate. Two webhooks fire in quick succession.</p>
+
+    <div class="api-block">
+      <div class="api-block-label hook">WEBHOOK #1 — fiat received</div>
+      <pre>{
+  <span class="key">"payload"</span>: {
+    <span class="key">"eventType"</span>:      <span class="ev">"FIAT_RECEIVED"</span>,
+    <span class="key">"id"</span>:             <span class="str">"33e0177f-...-1c46cb66f602"</span>,
+    <span class="key">"eventTriggerAt"</span>: <span class="str">"2026-03-05T22:26:40.000Z"</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"orderId"</span>: <span class="str">"73797374-...-00008badf00d"</span>,
+      <span class="key">"order"</span>: {
+        <span class="key">"orderStatus"</span>:        <span class="ev">"FIAT_RECEIVED"</span>,
+        <span class="key">"fiatReceivedAt"</span>:     <span class="num">1741210000000</span>,
+        <span class="key">"receivedFiatAmount"</span>: <span class="str">"100000.00"</span>,
+        <span class="key">"fiatDepositTransactions"</span>: [{
+          <span class="key">"bankTxId"</span>:        <span class="str">"SCB20260527000123"</span>,
+          <span class="key">"amount"</span>:          <span class="str">"100000.00"</span>,
+          <span class="key">"originatingBank"</span>: <span class="str">"HSBC HONG KONG"</span>,
+          <span class="key">"confirmedAt"</span>:     <span class="num">1741210000000</span>,
+          <span class="key">"status"</span>:          <span class="str">"CONFIRMED"</span>
+        }]
+      }
+    }
+  }, <span class="key">"signature"</span>: <span class="str">"FAKE3...Q=="</span>
+}</pre>
+    </div>
+
+    <div class="api-block">
+      <div class="api-block-label hook">WEBHOOK #2 — trade executed (seconds later)</div>
+      <pre>{
+  <span class="key">"payload"</span>: {
+    <span class="key">"eventType"</span>: <span class="ev">"TRADE_EXECUTED"</span>,
+    <span class="key">"id"</span>:        <span class="str">"44e0177f-...-1c46cb66f603"</span>,
+    <span class="key">"data"</span>: { <span class="key">"order"</span>: { <span class="key">"orderStatus"</span>: <span class="ev">"TRADE_EXECUTED"</span>, <span class="key">"tradeExecutedAt"</span>: <span class="num">1741210050000</span>, ... } }
+  }, <span class="key">"signature"</span>: <span class="str">"FAKE4...Q=="</span>
+}</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> Alice's UI updates as each webhook arrives — first to "Wire received" (green tick), then to "Sending USDC" (active spinner). On-chain settlement is queued. The trade is committed in Hex Trust's books; if anything fails after this point, fiat refund is the only path.
+    </div>
+  </div>
+</div>
+
+<hr class="stage-sep">
+
+<!-- ============================================================ -->
+<!-- STAGE 6 — Settled: success -->
+<!-- ============================================================ -->
+<div class="stage">
+  <div class="phone-wrap">
+    <div class="stage-num">6</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-content">
+        <div class="app-header">
+          <div class="hubpay-logo">hubpay</div>
+          <div class="balance">Order complete</div>
+        </div>
+
+        <div class="success-checkmark">✓</div>
+        <div class="success-amount">99,950.00 <span class="ticker">USDC</span></div>
+        <div class="success-sub">delivered to your wallet</div>
+
+        <div style="margin-top: 24px;">
+          <div class="bank-row" style="border: 0; padding: 6px 0;"><span class="label">Settlement amount</span><span class="value">$100,000.00 USD</span></div>
+          <div class="bank-row" style="border: 0; padding: 6px 0;"><span class="label">Rate (locked)</span><span class="value">0.99950</span></div>
+          <div class="bank-row" style="border: 0; padding: 6px 0;"><span class="label">Network</span><span class="value">Ethereum</span></div>
+          <div class="bank-row" style="border: 0; padding: 6px 0;"><span class="label">Completed</span><span class="value">Mar 6, 23:26 UTC</span></div>
+        </div>
+
+        <a class="tx-link" href="#">
+          🔗 View on Etherscan<br>0x7c8a...8b7c6
+        </a>
+
+        <button class="btn" style="margin-top: 14px;">Buy more</button>
+        <button class="btn secondary" style="margin-top: 8px;">Download receipt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-panel">
+    <h3>Stage 6 — Settled (terminal — success)</h3>
+    <p class="stage-sub">The on-chain settlement transaction confirms (block-confirmation count reached). The final webhook fires. Alice's view flips to the success state — USDC is in her wallet, viewable on Etherscan.</p>
+
+    <div class="api-block">
+      <div class="api-block-label hook">WEBHOOK — terminal success</div>
+      <pre>{
+  <span class="key">"payload"</span>: {
+    <span class="key">"eventType"</span>:      <span class="ev">"TRADE_SETTLED"</span>,
+    <span class="key">"id"</span>:             <span class="str">"55e0177f-...-1c46cb66f604"</span>,
+    <span class="key">"eventTriggerAt"</span>: <span class="str">"2026-03-06T23:26:40.000Z"</span>,
+    <span class="key">"data"</span>: {
+      <span class="key">"orderId"</span>:       <span class="str">"73797374-...-00008badf00d"</span>,
+      <span class="key">"clientOrderId"</span>: <span class="str">"hubpay-onramp-12345"</span>,
+      <span class="key">"order"</span>: {
+        <span class="key">"orderStatus"</span>:  <span class="ev">"TRADE_SETTLED"</span>,
+        <span class="key">"settledAt"</span>:    <span class="num">1741300000000</span>,
+        <span class="key">"cryptoSettlementTransactions"</span>: [{
+          <span class="key">"txHash"</span>:      <span class="str">"0x7c8a...b7c6"</span>,
+          <span class="key">"chainId"</span>:     <span class="str">"1"</span>,
+          <span class="key">"amount"</span>:      <span class="str">"99950.00"</span>,
+          <span class="key">"asset"</span>:       <span class="str">"USDC"</span>,
+          <span class="key">"to"</span>:          <span class="str">"0x4f5C...0bF"</span>,
+          <span class="key">"confirmedAt"</span>: <span class="num">1741300000000</span>,
+          <span class="key">"status"</span>:      <span class="str">"CONFIRMED"</span>
+        }]
+      }
+    },
+    <span class="key">"metadata"</span>: { <span class="key">"apiVersion"</span>: <span class="str">"1.0"</span>, <span class="key">"environment"</span>: <span class="str">"production"</span> }
+  },
+  <span class="key">"signature"</span>: <span class="str">"FAKE5ITi...Q=="</span>
+}</pre>
+    </div>
+
+    <div class="what-happens">
+      <b>What's happening:</b> Order is now terminal. HubPay updates its books, sends a receipt, and stops listening for further events on this <code>orderId</code>. End-to-end elapsed time: <b>~25 hours</b> (most of which was Alice's bank's SWIFT clearing). Alice can buy more — the next round is a fresh quote.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Summary table -->
+<!-- ============================================================ -->
+<div style="background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; margin-top: 32px;">
+  <h2 style="margin: 0 0 8px; font-size: 22px;">End-to-end journey summary</h2>
+  <p style="color: var(--muted); margin: 0 0 20px;">From quote to delivery — what Alice experiences vs what HubPay's backend does.</p>
+
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="text-align: left; border-bottom: 2px solid var(--line);">
+        <th style="padding: 12px 8px; width: 60px;">#</th>
+        <th style="padding: 12px 8px;">Alice's view</th>
+        <th style="padding: 12px 8px;">HubPay → Hex Trust</th>
+        <th style="padding: 12px 8px;">Hex Trust → HubPay (webhook)</th>
+        <th style="padding: 12px 8px; width: 110px;">Elapsed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px 8px;"><b>1</b></td>
+        <td style="padding: 12px 8px;">Picks USDC · Ethereum</td>
+        <td style="padding: 12px 8px;"><code>GET /onramp/availablePairs</code></td>
+        <td style="padding: 12px 8px;">—</td>
+        <td style="padding: 12px 8px;">0s</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px 8px;"><b>2</b></td>
+        <td style="padding: 12px 8px;">Enters $100k, sees locked rate</td>
+        <td style="padding: 12px 8px;"><code>POST /onramp/getQuote</code></td>
+        <td style="padding: 12px 8px;">—</td>
+        <td style="padding: 12px 8px;">+2s</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px 8px;"><b>3</b></td>
+        <td style="padding: 12px 8px;">Sees bank instructions, sends wire</td>
+        <td style="padding: 12px 8px;"><code>POST /onramp/acceptQuote</code></td>
+        <td style="padding: 12px 8px;"><span style="color: var(--accent);">🔔 <code>ORDER_CREATED</code></span></td>
+        <td style="padding: 12px 8px;">+10s</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px 8px;"><b>4</b></td>
+        <td style="padding: 12px 8px;">Status: awaiting wire</td>
+        <td style="padding: 12px 8px;">— (optional poll <code>orderStatus</code>)</td>
+        <td style="padding: 12px 8px;">—</td>
+        <td style="padding: 12px 8px;">+24h</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px 8px;"><b>5</b></td>
+        <td style="padding: 12px 8px;">Wire confirmed, trade executing</td>
+        <td style="padding: 12px 8px;">—</td>
+        <td style="padding: 12px 8px;"><span style="color: var(--accent);">🔔 <code>FIAT_RECEIVED</code> + 🔔 <code>TRADE_EXECUTED</code></span></td>
+        <td style="padding: 12px 8px;">+25h</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 8px;"><b>6</b></td>
+        <td style="padding: 12px 8px;">99,950 USDC in wallet ✓</td>
+        <td style="padding: 12px 8px;">—</td>
+        <td style="padding: 12px 8px;"><span style="color: var(--ok);">🔔 <code>TRADE_SETTLED</code> ✓</span></td>
+        <td style="padding: 12px 8px;">+25h 5m</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 24px; padding: 16px; background: var(--accent-soft); border-radius: 10px; font-size: 13px;">
+    <b style="color: var(--accent);">Integration footprint for HubPay:</b> 3 API calls (1 GET + 2 POST), 1 webhook endpoint, 7 event types to handle. Schema is near-identical to Convert-to-Pay, so a CTP integration can be extended in days, not weeks.
+  </div>
+</div>
+
+<footer class="page-footer">
+  Mockup • Single self-contained HTML • For stakeholder & client review<br>
+  Source spec: <code>onramp_api/onramp-openapi.yaml</code> · Webhook guide: <i>On-Ramp Trading API — Webhook Integration Guide</i>
+</footer>
+
+</div>
+</body>
+</html>

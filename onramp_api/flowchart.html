@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>On-Ramp Trading API — Business Flow (Pre-fund)</title>
+<style>
+  body {
+    background: #0f172a;
+    margin: 0;
+    padding: 32px 20px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #e2e8f0;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 {
+    text-align: center;
+    color: #7dd3fc;
+    font-size: 22px;
+    margin: 0 0 4px;
+    font-weight: 600;
+  }
+  p.sub { text-align: center; color: #64748b; font-size: 13px; margin: 0 0 4px; }
+  p.meta { font-size: 12px; color: #64748b; text-align: center; margin-bottom: 32px; }
+  h2 {
+    color: #93c5fd;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+    margin-top: 48px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  h3 { color: #cbd5e1; font-size: 14px; font-weight: 600; margin-top: 24px; }
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+  .adr { border-left: 3px solid #38bdf8; }
+  .flag { border-left: 3px solid #f59e0b; }
+  .mermaid { background: #fff; border-radius: 8px; padding: 18px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  th, td { border: 1px solid #334155; padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #172554; color: #93c5fd; font-weight: 600; }
+  td.center { text-align: center; }
+  code { background: #0f172a; color: #fbbf24; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .pill-rec { background: #14532d; color: #86efac; }
+  .terminal-ok { color: #86efac; }
+  .terminal-fail { color: #fca5a5; }
+  ul { line-height: 1.65; font-size: 14px; }
+  li { margin: 4px 0; }
+  .strike { color: #64748b; text-decoration: line-through; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    sequence: { actorMargin: 70, messageFontSize: 12, noteFontSize: 12, mirrorActors: false },
+    themeVariables: { fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }
+  });
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<h1>On-Ramp Trading API — Business Flow</h1>
+<p class="sub">Pre-fund model · Stablecoin Phase 1 · For business &amp; UX alignment</p>
+<p class="meta">Draft 2026-05-27 · rock.zeng · confirmed with JY against current OTC desk behavior</p>
+
+<!-- ============================================================ -->
+<h2>1. Scope</h2>
+<div class="card">
+<table>
+<thead><tr><th></th><th>Convert-to-Pay (off-ramp, today)</th><th>On-Ramp (this spec)</th></tr></thead>
+<tbody>
+<tr><td><b>Direction</b></td><td>crypto in → fiat out</td><td><b>fiat in → crypto out</b></td></tr>
+<tr><td><b>Crypto leg</b></td><td>any supported asset</td><td><b>stablecoins only (Phase 1)</b> — USDC, USDT</td></tr>
+<tr><td><b>Funding model</b></td><td>atomic (deposit-address per quote)</td><td><b>pre-fund</b> (deposit fiat → trade against balance)</td></tr>
+<tr><td><b>Fiat rails</b></td><td>AED (Zand), USD (BCB), SWIFT via SCB</td><td>same set</td></tr>
+<tr><td><b>CL1 confirmation</b></td><td>auto (on-chain detection)</td><td><b>manual ops</b> via HexAdmin</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+Phase 1 = stablecoins: crypto leg carries near-zero price risk (track fiat ±0.1%), so LP-hedge is trivial and held-balance FX exposure is negligible. Volatile-asset pairs are Phase 2.
+</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. Architecture decisions</h2>
+<div class="card adr">
+<h3 style="margin-top:0">ADR-001 — Pre-fund model (not atomic quote-first)</h3>
+<p style="font-size:13px"><b>Decision:</b> Client wires fiat first → ops confirms into a fiat balance → client trades against balance. Quotes are executable only when sufficient balance exists.</p>
+<p style="font-size:13px"><b>Why:</b></p>
+<ul style="font-size:13px">
+<li>Matches Hex Trust's <b>actual current OTC desk behavior</b> (per JY): we wait for client funds, then quote.</li>
+<li>Matches the <b>institutional industry standard</b> — Coinbase Prime, BitGo, Kraken, Bitstamp all pre-fund-then-trade. Atomic quote-first is the <i>retail</i> pattern (MoonPay, Stripe).</li>
+<li><b>Dissolves the rate-lock-over-slow-wire problem</b> — the slow bank rail happens <i>before</i> quoting, so the quote can be a normal short RFQ (~60s).</li>
+<li><b>Eliminates 3 edge cases</b>: partial deposit, mid-trade overpayment, late-wire re-quote all vanish.</li>
+</ul>
+<p style="font-size:13px"><b>Trade-off:</b> holding client fiat balances introduces safeguarding/segregation obligations (see §7).</p>
+</div>
+
+<div class="card adr">
+<h3 style="margin-top:0">ADR-002 — Separate endpoint set (<code>/onramp/*</code>)</h3>
+<p style="font-size:13px"><b>Decision:</b> <code>/onramp/*</code> is new, parallel to <code>/convert-to-pay/*</code>. Future <code>/swap/*</code> serves crypto-to-crypto.</p>
+<p style="font-size:13px"><b>Why:</b> pre-fund on-ramp behaves like a mini-brokerage account (deposit → balance → trade → refund) — structurally different from CTP's atomic deposit-address-per-quote. Mirrors how Coinbase keeps Onramp / Prime / Convert separate. <b>Symmetry enforced</b> (auth, webhook envelope, error namespace, pagination) so a future unified <code>/trade/*</code> is a docs-only re-skin.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Endpoints</h2>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td class="center">1</td><td><code>GET /onramp/availablePairs</code></td><td>Supported (fiat → stablecoin) pairs with min / max</td></tr>
+<tr><td class="center">2</td><td><code>GET /onramp/bankAccounts</code></td><td>HTM bank account(s) to deposit fiat into, <b>per currency</b></td></tr>
+<tr><td class="center">3</td><td><code>GET /onramp/balance</code></td><td>Client's fiat balance(s), <b>per currency</b></td></tr>
+<tr><td class="center">4</td><td><code>POST /onramp/getQuote</code></td><td>RFQ quote (informational), short TTL (~60s)</td></tr>
+<tr><td class="center">5</td><td><code>POST /onramp/acceptQuote</code></td><td>Execute — <b>guarded by sufficient balance</b>; settles crypto to whitelisted wallet</td></tr>
+<tr><td class="center">6</td><td><code>POST /onramp/refund</code></td><td>Refund fiat balance to registered bank account (maker-checker)</td></tr>
+<tr><td class="center">7</td><td><code>GET /onramp/orders</code></td><td>Trade history (supporting)</td></tr>
+<tr><td class="center">8</td><td><code>GET /onramp/deposits</code></td><td>Deposit history — which wires landed (supporting)</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. Two decoupled lifecycles</h2>
+<div class="card">
+<p style="font-size:13px;color:#94a3b8">The fiat-balance side is slow and ops-gated; the trade side is fast and atomic because the balance already exists. They touch only at <code>acceptQuote</code> (balance debit).</p>
+<div class="mermaid">
+stateDiagram-v2
+    direction LR
+    state "FIAT BALANCE (slow, ops-driven)" as F {
+        [*] --> DEPOSIT_PENDING : wire detected
+        DEPOSIT_PENDING --> CREDITED : ops confirms (CL1)
+        CREDITED --> REFUND_PENDING : POST /refund
+        REFUND_PENDING --> REFUNDED : ops pays out (maker-checker)
+    }
+    state "TRADE (fast, pre-funded)" as T {
+        [*] --> QUOTED : getQuote
+        QUOTED --> EXECUTED : acceptQuote (balance ok)
+        EXECUTED --> SETTLED : crypto delivered
+        QUOTED --> EXPIRED : quote TTL elapsed
+        EXECUTED --> FAILED : on-chain failure
+    }
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Sequence diagram</h2>
+<div class="card">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Client
+    participant API as Hex Trust API
+    participant Ops as Ops (HexAdmin)
+    participant Bank as Bank (Zand/BCB)
+    participant Trading as Trading Engine
+    participant Custody as HexSafe Custody
+
+    rect rgb(254, 243, 199)
+    Note over Client,API: A. Fund the account (slow, ops-gated · one-time/periodic)
+    Client->>API: GET /onramp/bankAccounts
+    API-->>Client: { USD:{beneficiary,routing,reference}, AED:{...} }
+    Client->>Bank: Wire fiat with reference in memo
+    Bank-->>Ops: Wire arrives (statement / bank API)
+    Ops->>API: Confirm deposit — CL1 (amount, valueDate, bankTxId)
+    API-->>Client: 🔔 FIAT_DEPOSIT_RECEIVED (balance credited)
+    end
+
+    rect rgb(219, 234, 254)
+    Note over Client,API: B. Trade (fast, repeatable)
+    Client->>API: GET /onramp/balance
+    API-->>Client: { USD: 100000 }
+    Client->>API: POST /onramp/getQuote { USD->USDC, 100000 }
+    API-->>Client: { quoteId, toAmount, ratio, validUntil ~60s }
+    Client->>API: POST /onramp/acceptQuote { quoteId }
+    API->>API: Check balance >= fromAmount ok · debit balance
+    API->>Trading: Book trade · hedge with LP (ML1)
+    Trading-->>API: Executed
+    API->>Custody: Send stablecoin to whitelisted wallet
+    Custody-->>API: On-chain confirmed
+    API-->>Client: 🔔 ORDER_SETTLED ✓
+    end
+
+    rect rgb(209, 250, 229)
+    Note over Client,API: C. Refund leftover fiat (optional)
+    Client->>API: POST /onramp/refund { currency:USD, amount }
+    API-->>Client: 🔔 REFUND_PENDING
+    Ops->>API: Approve refund (maker-checker)
+    API->>Bank: Fiat-out to registered bank account
+    Bank-->>Client: Fiat returned
+    API-->>Client: 🔔 REFUND_COMPLETED
+    end
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. Webhook events</h2>
+<div class="card">
+<table>
+<thead><tr><th>Event</th><th>Fires when</th><th>Key payload fields</th></tr></thead>
+<tbody>
+<tr><td><code>FIAT_DEPOSIT_PENDING</code> <i>(opt)</i></td><td>Wire detected, ops not yet confirmed</td><td>depositId, currency, amount, detectedAt</td></tr>
+<tr><td><code>FIAT_DEPOSIT_RECEIVED</code></td><td>Ops confirms deposit, balance credited (CL1)</td><td>depositId, currency, amount, bankTxId, valueDate, newBalance</td></tr>
+<tr><td><code>ORDER_EXECUTED</code> <i>(opt split)</i></td><td>Trade booked &amp; hedged</td><td>orderId, executedToAmount, executedAt</td></tr>
+<tr class="terminal-ok"><td><code>ORDER_SETTLED</code> ✓</td><td>Crypto on-chain confirmed to client wallet</td><td>orderId, txHash, settledToAmount, chainId, newBalance</td></tr>
+<tr class="terminal-fail"><td><code>ORDER_FAILED</code> ✗</td><td>On-chain settlement failure (balance restored)</td><td>orderId, failureReason, newBalance</td></tr>
+<tr><td><code>REFUND_PENDING</code></td><td>Refund requested, awaiting ops approval</td><td>refundId, currency, amount</td></tr>
+<tr class="terminal-ok"><td><code>REFUND_COMPLETED</code> ✓</td><td>Fiat returned to registered bank account</td><td>refundId, bankTxId, newBalance</td></tr>
+<tr class="terminal-fail"><td><code>REFUND_REJECTED</code> ✗</td><td>Ops rejected refund (e.g. bank mismatch)</td><td>refundId, reason</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+Same envelope as Convert-to-Pay: at-least-once, HMAC-signed, exponential-backoff retry, dedupe by <code>orderId/depositId/refundId + eventType</code>. <code>getQuote → acceptQuote</code> is one fast round-trip, so <code>ORDER_EXECUTED</code> and <code>ORDER_SETTLED</code> may collapse into one event.
+</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. UX / design decisions</h2>
+<div class="card">
+<p style="font-size:12px;color:#94a3b8">Revised for pre-fund. Atomic-model decisions that no longer apply <span class="strike">(order window, late-wire, partial-deposit, mid-trade overpayment)</span> removed.</p>
+<table>
+<thead><tr><th>#</th><th>Decision</th><th>Options</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td><b>D1</b></td><td>Crypto delivery after trade</td><td>(a) auto-settle to whitelisted wallet / (b) crypto balance + separate withdraw</td><td><span class="pill pill-rec">auto-settle</span> Phase 1; (b) is Phase 2</td></tr>
+<tr><td><b>D2</b></td><td>Crypto destination scope</td><td>(a) counterparty-book whitelist / (b) client default per chain / (c) arbitrary per accept</td><td><span class="pill pill-rec">default-per-chain</span> first cut</td></tr>
+<tr><td><b>D3</b></td><td>Quote TTL</td><td>(a) 30s / (b) 60s / (c) 2 min</td><td><span class="pill pill-rec">60s</span> no slow rail in loop now</td></tr>
+<tr><td><b>D4</b></td><td>Bank account model</td><td>(a) shared + reference / (b) per-customer VAN / (c) hybrid</td><td><span class="pill pill-rec">(a) Phase 1</span> migrate to (c)</td></tr>
+<tr><td><b>D5</b></td><td>Deposit confirmation UX</td><td>(a) manual match / (b) auto-match + ops approve / (c) full auto</td><td><span class="pill pill-rec">auto-match + approve</span> reuses fiat-initiation work</td></tr>
+<tr><td><b>D6</b></td><td>Refund destination</td><td>(a) any registered account / (b) only originating account</td><td><span class="pill pill-rec">originating only</span> source-of-funds match</td></tr>
+<tr><td><b>D7</b></td><td>Balance dimension</td><td>per-currency map; balance only funds same-currency quote</td><td>confirm currency set (§9)</td></tr>
+<tr><td><b>D8</b></td><td>Idle-balance handling</td><td>(a) hold / (b) auto-refund after N days / (c) idle custody fee</td><td><span class="pill pill-rec">hold</span> Phase 1; revisit per safeguarding</td></tr>
+<tr><td><b>D9</b></td><td>Travel Rule data</td><td>(a) skip Phase 1 / (b) capture from registered counterparty</td><td><span class="pill pill-rec">from counterparty</span> on crypto-out leg</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. Compliance flag — client-money safeguarding</h2>
+<div class="card flag">
+<p style="font-size:13px">The single genuinely new risk vs the pass-through CTP model: <b>holding client fiat balances</b> may trigger client-money safeguarding / segregation obligations, and possibly e-money / deposit-taking considerations, depending on the issuing entity's jurisdiction (SG / UAE / HK). Clear with compliance before build:</p>
+<ul style="font-size:13px">
+<li>Are held fiat balances segregated from Hex Trust operating funds?</li>
+<li>Which entity holds the balance — is the activity within its license scope?</li>
+<li>Maximum hold period or balance cap per client?</li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>9. Open questions for business</h2>
+<div class="card">
+<ul>
+<li><b>Stablecoin coverage</b> — USDC + USDT only, or also USDP / PYUSD / EURC / TUSD?</li>
+<li><b>Fiat coverage</b> — USD, EUR, GBP, AED, SGD, HKD? Phase 1 priority?</li>
+<li><b>Client onboarding</b> — separate KYB pass, or piggy-back on Hex Safe onboarding?</li>
+<li><b>Minimum trade size &amp; minimum deposit</b> — same floor as Convert-to-Pay or higher?</li>
+<li><b>Crypto delivery</b> — auto-settle (D1a) confirmed, or hold crypto balances (D1b)?</li>
+<li><b>Pilot client</b> — HubPay again, or a new design partner?</li>
+<li><b>Legal entity / jurisdiction</b> — which entity issues the order &amp; holds the fiat balance?</li>
+<li><b>Safeguarding</b> — see §8; compliance sign-off needed before build.</li>
+</ul>
+</div>
+
+<p class="meta" style="margin-top:48px">
+Source: <code>onramp_api/sequence-diagram.md</code> · Next: OpenAPI spec + tech design after business sign-off
+</p>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1507 @@
+openapi: 3.0.3
+info:
+  title: Hex Trust — On-Ramp Trading API
+  version: "1.0"
+  description: |
+    On-Ramp allows institutional clients to acquire stablecoins (USDC, USDT) by
+    paying fiat. Hex Trust quotes a rate from a liquidity provider (Ripple in
+    Phase 1), settles the trade from internal inventory, and delivers stablecoin
+    on-chain to the client's pre-configured whitelisted wallet.
+
+    ## Authentication
+    Every request requires both:
+    - `Authorization: Bearer <signed-JWT>` — signed with the client's private key
+    - `X-API-KEY` — the client's API key ID
+
+    ## Flow (DvP-atomic)
+    The on-ramp follows a Delivery-versus-Payment atomic flow — Hex Trust will
+    not deliver crypto until ops manually confirms the client's fiat wire (CL1):
+
+    1. `GET /onramp/availablePairs` — discover supported (fiat → stablecoin) pairs
+    2. `POST /onramp/getQuote` — get a live indicative quote; valid for ~5 min
+    3. `POST /onramp/acceptQuote` — bind the quote → receive **Hex Trust's shared
+       bank account details** + an `orderId`; the order has a 48h fulfilment window
+    4. Client wires fiat to the returned bank account (no per-order reference
+       required in the wire memo — ops matches by amount + originating bank +
+       timing)
+    5. Ops manually confirms CL1 in HexAdmin → `FIAT_RECEIVED` webhook fires
+    6. Settlement engine debits stablecoin inventory at the locked rate →
+       `TRADE_EXECUTED` webhook fires
+    7. HexSafe custody delivers the stablecoin on-chain to the client's
+       pre-configured whitelisted destination address (HexSafe vault or external
+       wallet) → `TRADE_SETTLED` webhook fires (terminal)
+
+    ## Order State Machine
+    ```
+    ORDER_CREATED
+      ├─→ PARTIAL_FIAT_RECEIVED  (partial wire received within window)
+      │     ├─→ FIAT_RECEIVED     (top-up reaches full OR trader amends order amount)
+      │     └─→ ORDER_EXPIRED     (window expires with partial only)
+      ├─→ FIAT_RECEIVED          (full wire within window)
+      └─→ ORDER_EXPIRED          (window expires, no wire)
+    FIAT_RECEIVED
+      └─→ TRADE_EXECUTED         (inventory debited at locked rate)
+    TRADE_EXECUTED
+      └─→ TRADE_SETTLED ✓        (full crypto delivered on-chain — terminal)
+    ORDER_EXPIRED
+      └─→ FAILED ✗               (refund per re-quote / refund flow)
+    FAILED ✗                     (terminal — ops reject, sanctions, on-chain failure, refund)
+    ```
+
+    On-ramp **always settles the full amount in one shot** — there is no
+    `SETTLED_PARTIAL_AMOUNT` state. If the client wires a partial amount, the
+    trader either rejects + refunds, or amends the order amount to match the
+    partial deposit and then executes as a normal full settlement.
+
+    ## Crypto Destination Resolution
+    The crypto destination (stablecoin delivery address) is **NOT** supplied by
+    the client per order. It is resolved server-side:
+    - Each trading client configures a **default address per chain** in the
+      trading-client counterparty service
+    - The default address must be a **whitelisted address** in that service
+    - At `acceptQuote` time, the system looks up the default for the requested
+      `chainId` and uses it as the on-chain destination
+    - If no default is configured for the requested chain, `acceptQuote` returns
+      an error (no per-order address override in Phase 1)
+
+    ## Jurisdiction Scoping
+    Every response is filtered by the requesting client's **jurisdiction**,
+    resolved server-side from `X-Client-Id` (and confirmed by `X-Enterprise-Id`).
+
+    Hex Trust's onboarding model:
+    - Each `client_id` is the trading-client counterparty record
+    - Each `client_id` is bound to **exactly one** HTM legal entity at onboarding (1:1)
+    - Each HTM entity has **exactly one** licensed jurisdiction (1:1)
+    - Therefore: `client_id → entity → jurisdiction` is unambiguously
+      derivable, and the client never specifies it on requests
+
+    A fintech contracted with multiple HTM entities (e.g., both SG and SVG)
+    holds **multiple `client_id`s**, one per entity, and switches per request.
+
+    Phase 1 launches under **SVG** (St. Vincent and the Grenadines).
+
+    ## Phase 1 Scope
+    - **Stablecoins only** — USDC, USDT (others TBD)
+    - **Fiat coverage** — USD, EUR, GBP, AED, SGD, HKD (priority TBD)
+    - **Minimum trade size** — 10 USD equivalent
+    - **Trade execution** — from Hex Trust inventory (no LP hedge per trade)
+    - **Inventory management** — not gating the API; on insufficient inventory
+      at execution time, automation fails and ops + traders are notified via
+      Slack to settle manually. **Inventory reservation at `acceptQuote` is
+      deferred to Phase 2** (see backlog B5)
+    - **Counterparty whitelist** — ops-managed via HexAdmin at client
+      onboarding. **Self-serve whitelist API is deferred to Phase 2** (see
+      backlog B4)
+    - **Travel Rule** — captured at Phase 1 from the registered counterparty
+      record on the crypto-out leg
+
+servers:
+  - url: https://api.hexsafe.io/v1
+    description: Production
+  - url: https://api.staging.hexsafe.io/v1
+    description: Staging
+
+security:
+  - APIKey: []
+  - Bearer: []
+
+tags:
+  - name: onramp
+    description: On-Ramp fiat → stablecoin flow
+
+paths:
+  /onramp/availablePairs:
+    get:
+      summary: Get available trading pairs
+      description: |
+        Lists the (fiat → stablecoin) pairs available for on-ramp trades.
+
+        Results are **filtered server-side by the requesting client's
+        jurisdiction** (resolved from `X-Client-Id` / `X-Enterprise-Id`).
+        Different Hex Trust legal entities (SVG, SG, UAE, HK) have different
+        licensed pair sets and supported chains.
+      operationId: getAvailablePairs
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseId"
+      responses:
+        "200":
+          description: List of available pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailablePair"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /onramp/assetInfo:
+    get:
+      summary: Get asset info
+      description: Returns asset metadata required when filling in a quote request.
+      operationId: getAssetInfo
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseId"
+        - name: assetKey
+          in: query
+          description: Asset ticker key (e.g. USDC)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset info list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetInfo"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /onramp/getQuote:
+    post:
+      summary: Request a quote
+      description: |
+        Request an on-ramp quote for a given fiat → stablecoin pair and amount.
+
+        Provide either `fiatAmount` (fiat the client will wire) or `cryptoAmount`
+        (stablecoin the client expects to receive). The other is calculated
+        from the live LP price + Hex Trust spread.
+
+        Returns a `quoteId` valid until `validTimestamp` (typically ~5 minutes).
+      operationId: getQuote
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientIdRequired"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetQuoteRequest"
+      responses:
+        "200":
+          description: Quote details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetQuoteResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /onramp/acceptQuote:
+    post:
+      summary: Accept a quote
+      description: |
+        Bind the locked quote and receive Hex Trust's bank account details for
+        the fiat wire.
+
+        The `chainId` is **encoded in the `quoteId`** from `getQuote` — it does
+        not need to be passed again.
+
+        Returns an `orderId` to track the on-ramp order via `orderStatus` and
+        webhook events. The order window (default 48h, 72h for SWIFT pairs)
+        begins from this point — the client should wire fiat before `expiresAt`.
+
+        **Crypto destination is resolved server-side** from the trading-client's
+        default whitelisted address for the quote's chain. If no default is
+        configured, this endpoint returns `CRYPTO_DESTINATION_NOT_CONFIGURED`.
+      operationId: acceptQuote
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientIdRequired"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptQuoteRequest"
+      responses:
+        "200":
+          description: Accepted quote with bank account instructions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptQuoteResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /onramp/orderStatus:
+    get:
+      summary: Get order status
+      description: |
+        Query the current state of an on-ramp order by `orderId`.
+
+        Returns the locked quote details, the bank account the client should
+        wire to, the resolved crypto destination, and arrays of fiat-deposit
+        and crypto-settlement transactions as they accrue.
+      operationId: getOrderStatus
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+        - name: orderId
+          in: query
+          required: true
+          description: Order ID returned by acceptQuote
+          schema:
+            type: string
+            format: uuid
+            example: 73797374-656d-4000-0000-00008badf00d
+      responses:
+        "200":
+          description: Order status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderStatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /onramp/orderHistory:
+    get:
+      summary: Get order history
+      description: Query all orders within a time range. Max 1000 records per call; use `moreData` to paginate.
+      operationId: getOrderHistory
+      tags: [onramp]
+      parameters:
+        - $ref: "#/components/parameters/XClientId"
+        - $ref: "#/components/parameters/XEnterpriseIdRequired"
+        - name: startTime
+          in: query
+          required: true
+          description: Start of range (Unix ms)
+          schema:
+            type: integer
+            format: int64
+            example: 1732752000000
+        - name: endTime
+          in: query
+          required: true
+          description: End of range (Unix ms)
+          schema:
+            type: integer
+            format: int64
+            example: 1740614400000
+        - name: limit
+          in: query
+          description: "Max records to return (default: 100, max: 1000)"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        "200":
+          description: Paginated order history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderHistoryResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    APIKey:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+      description: API key ID issued by Hex Trust
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT signed with the client's private key
+
+  parameters:
+    XClientId:
+      name: X-Client-Id
+      in: header
+      description: Trading client ID
+      schema:
+        type: string
+        example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+    XClientIdRequired:
+      name: X-Client-Id
+      in: header
+      required: true
+      description: Trading client ID
+      schema:
+        type: string
+        example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+    XEnterpriseId:
+      name: X-Enterprise-Id
+      in: header
+      description: Enterprise ID
+      schema:
+        type: string
+        example: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+    XEnterpriseIdRequired:
+      name: X-Enterprise-Id
+      in: header
+      required: true
+      description: Enterprise ID
+      schema:
+        type: string
+        example: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CRYPTO_DESTINATION_NOT_CONFIGURED
+          description: |
+            Error codes (non-exhaustive):
+            - `INVALID_REQUEST` — bad input
+            - `AMBIGUOUS_QUOTE_REQUEST` — both `fiatAmount` and `cryptoAmount` were provided, or neither; exactly one is required
+            - `UNAUTHORIZED` — auth failed
+            - `PAIR_NOT_SUPPORTED` — requested pair not in the available pairs catalogue
+            - `PAIR_NOT_AVAILABLE_IN_JURISDICTION` — pair exists but is not licensed for the requesting client's jurisdiction
+            - `CHAIN_NOT_SUPPORTED` — requested chain is not in the pair's `supportedChains`
+            - `CHAIN_NOT_AVAILABLE_IN_JURISDICTION` — chain exists but is not licensed for the requesting client's jurisdiction
+            - `PAIR_DISABLED` — pair temporarily disabled (admin switch — see backlog B2)
+            - `ONRAMP_DISABLED` — entire on-ramp API in maintenance (admin switch — see backlog B3)
+            - `QUOTE_EXPIRED` — quote validity window elapsed
+            - `QUOTE_NOT_FOUND` — quoteId unknown or already accepted
+            - `CRYPTO_DESTINATION_NOT_CONFIGURED` — no default whitelisted address for the quote's chain on the trading-client's counterparty record
+            - `MIN_AMOUNT_NOT_MET` — trade size below minimum
+            - `MAX_AMOUNT_EXCEEDED` — trade size above maximum
+        message:
+          type: string
+          example: No default crypto destination configured for chain "1" — register a whitelisted address on the trading-client counterparty service first
+      required: [code, message]
+
+    OrderStatus:
+      type: string
+      description: |
+        On-ramp order state:
+        - `ORDER_CREATED` — quote accepted; rate locked; bank account issued; awaiting fiat
+        - `PARTIAL_FIAT_RECEIVED` — partial wire received within window; trader will decide to amend or reject
+        - `FIAT_RECEIVED` — full fiat amount confirmed by ops (CL1 settled)
+        - `TRADE_EXECUTED` — inventory debited at locked rate; awaiting on-chain confirmation
+        - `TRADE_SETTLED` — stablecoin on-chain confirmed to client wallet ✓ terminal
+        - `ORDER_EXPIRED` — window elapsed without full fiat ✗
+        - `FAILED` — terminal failure (ops reject, sanctions, on-chain failure, refund) ✗
+      enum:
+        - ORDER_CREATED
+        - PARTIAL_FIAT_RECEIVED
+        - FIAT_RECEIVED
+        - TRADE_EXECUTED
+        - TRADE_SETTLED
+        - ORDER_EXPIRED
+        - FAILED
+      example: ORDER_CREATED
+
+    AvailablePair:
+      type: object
+      description: |
+        A (fiat → stablecoin) trading pair. Results from `/onramp/availablePairs`
+        are **filtered server-side by the requesting client's jurisdiction**
+        (resolved from `X-Client-Id` / `X-Enterprise-Id`). Different Hex Trust
+        legal entities (SVG, SG, UAE, HK) have different licensed pair sets.
+      properties:
+        fiatCurrency:
+          type: string
+          description: Fiat currency code
+          example: USD
+        cryptoCurrency:
+          type: string
+          description: Stablecoin ticker
+          example: USDC
+        fiatMinAmount:
+          type: number
+          minimum: 0
+          description: |
+            Minimum trade size, expressed in the fiat currency. The on-ramp
+            is single-direction (fiat → crypto), so size is bounded on the
+            fiat side that the client wires; the crypto-side bound is derived
+            from the rate at quote time.
+          example: 10
+        fiatMaxAmount:
+          type: number
+          minimum: 0
+          description: Maximum trade size, expressed in the fiat currency.
+          example: 2000000
+        supportedChains:
+          type: array
+          description: Chains on which the stablecoin can be delivered for this pair
+          items:
+            type: object
+            properties:
+              chainId:
+                type: string
+                example: "1"
+              chainName:
+                type: string
+                example: ethereum
+      required: [fiatCurrency, cryptoCurrency, fiatMinAmount, fiatMaxAmount, supportedChains]
+
+    AssetInfo:
+      type: object
+      properties:
+        key:
+          type: string
+          example: USDC
+        name:
+          type: string
+          example: USD Coin
+        decimal:
+          type: integer
+          example: 6
+        chainId:
+          type: string
+          example: "1"
+        symbol:
+          type: string
+          example: USDC
+        chainName:
+          type: string
+          example: ethereum
+      required: [key, name, decimal, symbol]
+
+    GetQuoteRequest:
+      type: object
+      description: |
+        **Exactly one** of `fiatAmount` or `cryptoAmount` must be provided —
+        not both, not neither. The server derives the other side from the live
+        LP price + Hex Trust spread and returns both values in the quote.
+
+        `chainId` is required because price and inventory can vary per chain.
+        The quote is bound to the (`fiatCurrency`, `cryptoCurrency`, `chainId`)
+        combination and the resolved chain is encoded into the returned
+        `quoteId`.
+      properties:
+        fiatCurrency:
+          type: string
+          description: Fiat currency the client will wire
+          example: USD
+        cryptoCurrency:
+          type: string
+          description: Stablecoin the client will receive
+          example: USDC
+        chainId:
+          type: string
+          description: |
+            Chain on which the stablecoin should be delivered (e.g. "1" for
+            Ethereum mainnet). Must be one of the `supportedChains` for the
+            pair, AND licensed for the requesting client's jurisdiction.
+          example: "1"
+        fiatAmount:
+          type: string
+          description: |
+            Fiat amount the client will wire. Provide **this OR `cryptoAmount`**,
+            not both. Mutually exclusive with `cryptoAmount`.
+          example: "100000.00"
+        cryptoAmount:
+          type: string
+          description: |
+            Stablecoin amount the client expects to receive. Provide **this OR
+            `fiatAmount`**, not both. Mutually exclusive with `fiatAmount`.
+          example: "99950.00"
+      required: [fiatCurrency, cryptoCurrency, chainId]
+      oneOf:
+        - required: [fiatAmount]
+          not: { required: [cryptoAmount] }
+        - required: [cryptoAmount]
+          not: { required: [fiatAmount] }
+
+    GetQuoteResponse:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        fiatCurrency:
+          type: string
+          example: USD
+        cryptoCurrency:
+          type: string
+          example: USDC
+        chainId:
+          type: string
+          description: Chain the quote is bound to (echoed back from the request for confirmation)
+          example: "1"
+        chainName:
+          type: string
+          example: ethereum
+        fiatAmount:
+          type: string
+          description: Fiat amount the client must wire
+          example: "100000.00"
+        cryptoAmount:
+          type: string
+          description: Stablecoin amount the client will receive
+          example: "99950.00"
+        ratio:
+          type: string
+          description: Exchange rate (cryptoCurrency per fiatCurrency; includes Hex Trust spread)
+          example: "0.99950"
+        inverseRatio:
+          type: string
+          description: Inverse exchange rate (fiatCurrency per cryptoCurrency)
+          example: "1.00050"
+        validTimestamp:
+          type: integer
+          format: int64
+          description: Quote expiry time (Unix ms) — typically ~5 minutes after issue
+          example: 1741124356789
+      required: [quoteId, fiatCurrency, cryptoCurrency, chainId, fiatAmount, cryptoAmount, ratio, inverseRatio, validTimestamp]
+
+    AcceptQuoteRequest:
+      type: object
+      description: |
+        Bind the locked quote and create an order. The chain (and therefore the
+        crypto destination address) is already encoded in the `quoteId` from
+        `getQuote` — clients do not need to pass it again.
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+          description: Quote ID from getQuote
+          example: 73797374-656d-4000-8000-00008badf00d
+        clientOrderId:
+          type: string
+          description: Optional client-defined reference (echoed in webhooks and orderStatus)
+          example: hubpay-onramp-12345
+      required: [quoteId]
+
+    BankAccount:
+      type: object
+      description: |
+        Hex Trust's shared bank account for receiving fiat wires. The same
+        account is used across clients for a given currency / rail; ops matches
+        inbound wires to orders by amount + originating bank + timing.
+
+        No per-order reference code is required in the wire memo.
+      properties:
+        beneficiaryName:
+          type: string
+          example: Hex Trust Markets Ltd
+        beneficiaryAddress:
+          type: string
+          example: 123 Market Street, Suite 100, Saint Vincent and the Grenadines
+        bankName:
+          type: string
+          example: Standard Chartered Bank
+        accountNumber:
+          type: string
+          example: "01234567890123"
+        iban:
+          type: string
+          description: IBAN if applicable to the rail
+          example: AE070331234567890123456
+        swiftCode:
+          type: string
+          example: SCBLAEAAXXX
+        routingNumber:
+          type: string
+          description: Fedwire / ABA routing number for USD domestic wires
+          example: "026002561"
+        intermediaryBank:
+          type: object
+          description: Intermediary correspondent bank if required by the rail (typically for SWIFT)
+          properties:
+            bankName:
+              type: string
+              example: Standard Chartered Bank, New York
+            swiftCode:
+              type: string
+              example: SCBLUS33XXX
+            routingNumber:
+              type: string
+              example: "026002561"
+        currency:
+          type: string
+          example: USD
+      required: [beneficiaryName, bankName, currency]
+
+    AcceptQuoteResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Unique identifier for tracking this order
+          example: 73797374-656d-4000-0000-00008badf00d
+        createTime:
+          type: integer
+          format: int64
+          description: Order creation time (Unix ms)
+          example: 1741123456789
+        expiresAt:
+          type: integer
+          format: int64
+          description: Order window expiry — fiat must arrive before this (Unix ms)
+          example: 1741296256789
+        bankAccounts:
+          type: array
+          description: |
+            All Hex Trust bank accounts available for the order's currency
+            under the trading client's HTM broker entity.
+
+            **Scope** — derived implicitly from `client_id`:
+            `client_id → HTM broker entity → jurisdiction → enabled bank accounts
+            for the requested currency`. No additional filtering is applied.
+
+            **Multiple options** give the client choice across banks (e.g. BCB +
+            Standard Chartered) and rails (Fedwire / SWIFT / SEPA) for the same
+            currency. The client picks whichever best matches their own banking
+            relationship.
+
+            **Snapshot semantics** — the array is captured at `acceptQuote`
+            time and locked on the order. Bank accounts added or disabled
+            later affect only new orders.
+
+            **Ops matching** — ops matches the inbound wire by amount +
+            originating bank regardless of which Hex Trust account received it,
+            so the client does not need to declare their choice to the server.
+          items:
+            $ref: "#/components/schemas/BankAccount"
+          minItems: 1
+        cryptoDestination:
+          type: string
+          description: |
+            Resolved on-chain destination address for the stablecoin delivery
+            (read from the trading-client's default whitelisted address for the
+            requested chain).
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        chainId:
+          type: string
+          example: "1"
+        chainName:
+          type: string
+          example: ethereum
+        fiatAmount:
+          type: string
+          example: "100000.00"
+        cryptoAmount:
+          type: string
+          example: "99950.00"
+        lockedRate:
+          type: string
+          description: Exchange rate locked at acceptQuote (cryptoCurrency per fiatCurrency)
+          example: "0.99950"
+        orderStatus:
+          $ref: "#/components/schemas/OrderStatus"
+      required: [orderId, createTime, expiresAt, bankAccounts, cryptoDestination, chainId, fiatAmount, cryptoAmount, lockedRate, orderStatus]
+
+    FiatDepositTransaction:
+      type: object
+      description: A confirmed fiat wire received against an order
+      properties:
+        bankTxId:
+          type: string
+          description: Bank's transaction reference (from wire MT103 / Fedwire)
+          example: SCB20260527000123
+        amount:
+          type: string
+          description: Fiat amount received in this wire
+          example: "100000.00"
+        currency:
+          type: string
+          example: USD
+        valueDate:
+          type: integer
+          format: int64
+          description: Bank's value date for the wire (Unix ms)
+          example: 1741200000000
+        confirmedAt:
+          type: integer
+          format: int64
+          description: Time ops confirmed the deposit in HexAdmin (Unix ms)
+          example: 1741210000000
+        originatingBank:
+          type: string
+          description: Bank that originated the wire (from MT103 field 52A or equivalent)
+          example: HSBC HONG KONG
+        status:
+          type: string
+          enum: [CONFIRMED, REJECTED]
+          example: CONFIRMED
+        rejectionReason:
+          type: string
+          description: Present when status = REJECTED (e.g. source-of-funds mismatch, sanctions)
+          example: Originating bank does not match registered client bank
+      required: [bankTxId, amount, currency, confirmedAt, status]
+
+    CryptoSettlementTransaction:
+      type: object
+      description: A stablecoin delivery to the client's whitelisted wallet
+      properties:
+        txHash:
+          type: string
+          example: "0x7c8a9b3f4e5d6c2a1b9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6"
+        chainId:
+          type: string
+          example: "1"
+        amount:
+          type: string
+          description: Stablecoin amount delivered
+          example: "99950.00"
+        asset:
+          type: string
+          example: USDC
+        from:
+          type: string
+          description: Hex Trust source vault address
+          example: "0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE"
+        to:
+          type: string
+          description: Client's whitelisted destination address
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        confirmedAt:
+          type: integer
+          format: int64
+          description: Block-confirmation time (Unix ms)
+          example: 1741300000000
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, FAILED]
+          example: CONFIRMED
+      required: [txHash, chainId, amount, asset, status]
+
+    OrderStatusResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-0000-00008badf00d
+        quoteId:
+          type: string
+          format: uuid
+          example: 73797374-656d-4000-8000-00008badf00d
+        clientOrderId:
+          type: string
+          description: Client-defined order reference if provided on acceptQuote
+          example: hubpay-onramp-12345
+        orderStatus:
+          $ref: "#/components/schemas/OrderStatus"
+        fiatCurrency:
+          type: string
+          example: USD
+        fiatAmount:
+          type: string
+          description: Locked fiat amount the client should wire
+          example: "100000.00"
+        cryptoCurrency:
+          type: string
+          example: USDC
+        cryptoAmount:
+          type: string
+          description: Locked stablecoin amount to be delivered
+          example: "99950.00"
+        lockedRate:
+          type: string
+          example: "0.99950"
+        inverseRate:
+          type: string
+          example: "1.00050"
+        bankAccounts:
+          type: array
+          description: All bank-account options the client could wire to (echoed from the original `acceptQuote` response for reference / auditability)
+          items:
+            $ref: "#/components/schemas/BankAccount"
+          minItems: 1
+        cryptoDestination:
+          type: string
+          example: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+        chainId:
+          type: string
+          example: "1"
+        chainName:
+          type: string
+          example: ethereum
+        expiresAt:
+          type: integer
+          format: int64
+          example: 1741296256789
+        createTime:
+          type: integer
+          format: int64
+          example: 1741123456789
+        fiatReceivedAt:
+          type: integer
+          format: int64
+          description: Time ops confirmed CL1 settlement (Unix ms); null until FIAT_RECEIVED
+          example: 1741210000000
+        tradeExecutedAt:
+          type: integer
+          format: int64
+          description: Time inventory was debited at the locked rate; null until TRADE_EXECUTED
+          example: 1741210050000
+        settledAt:
+          type: integer
+          format: int64
+          description: Time the on-chain crypto settlement confirmed; null until TRADE_SETTLED
+          example: 1741300000000
+        receivedFiatAmount:
+          type: string
+          description: |
+            Cumulative fiat received so far (non-zero when in PARTIAL_FIAT_RECEIVED
+            or after the trader amends the order amount).
+          example: "100000.00"
+        amendedFiatAmount:
+          type: string
+          description: |
+            If the trader amended the order amount to match a partial deposit,
+            this is the new locked `fiatAmount`. The on-chain delivery is sized
+            against this amended amount.
+          example: "100000.00"
+        clientId:
+          type: string
+          format: uuid
+          example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+        enterpriseId:
+          type: string
+          format: uuid
+          example: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+        failureReason:
+          type: string
+          description: Present when orderStatus = FAILED
+          example: Refunded due to sanctions screening hit on originating bank
+        fiatDepositTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FiatDepositTransaction"
+        cryptoSettlementTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoSettlementTransaction"
+      required:
+        - orderId
+        - quoteId
+        - orderStatus
+        - fiatCurrency
+        - fiatAmount
+        - cryptoCurrency
+        - cryptoAmount
+        - lockedRate
+        - inverseRate
+        - bankAccounts
+        - cryptoDestination
+        - chainId
+        - chainName
+        - expiresAt
+        - createTime
+        - fiatDepositTransactions
+        - cryptoSettlementTransactions
+
+    OrderHistoryResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderStatusResponse"
+          description: Order records in the requested time range
+        startTime:
+          type: integer
+          format: int64
+          example: 1732752000000
+        endTime:
+          type: integer
+          format: int64
+          example: 1740614400000
+        limit:
+          type: integer
+          example: 100
+        moreData:
+          type: boolean
+          description: True if additional records exist beyond this page
+          example: false
+      required: [list, startTime, endTime, limit, moreData]
+
+    WebhookEnvelope:
+      type: object
+      description: |
+        Top-level webhook body delivered to the client's registered callback URL.
+        Mirrors the Convert-to-Pay webhook envelope so clients integrating both
+        APIs can share most of their delivery handling.
+
+        **Structure**
+
+        - `payload` — the event envelope (event type, delivery metadata, data,
+          metadata block)
+        - `signature` — base64-encoded **Ed25519 signature** over the
+          JSON-marshaled `payload` field. Clients verify with Hex Trust's
+          Ed25519 **public key** (distributed out-of-band by the HT
+          relationship manager at onboarding). Asymmetric — no shared secret.
+
+        **Delivery semantics**
+
+        - At-least-once delivery
+        - Retries reuse the same `payload.id`; `payload.retryNum` increments
+          each attempt
+        - Clients dedupe by `payload.id` (preferred) or by
+          `payload.data.orderId + payload.eventType`
+        - Flat per-webhook-URL retry interval (configured at onboarding), polled by a background cron every `RETRY_FAILED_NOTI_INTERVAL` (default 60s); stopped after `maxRetries` (also configurable per webhook URL)
+        - HTTPS only; client returns 2xx within **8 seconds** (`CLIENT_TIMEOUT` default) to ack
+      properties:
+        payload:
+          $ref: "#/components/schemas/WebhookPayload"
+        signature:
+          type: string
+          description: |
+            Base64-encoded Ed25519 signature over the bytes produced by
+            JSON-marshaling the `payload` field. Hex Trust signs with its
+            webhook private key. Clients verify with Hex Trust's published
+            Ed25519 public key (distributed out-of-band by the HT
+            relationship manager at onboarding).
+
+            Verification gotcha — the client must re-serialize `payload` with a
+            JSON library byte-compatible with Go's `encoding/json` (key order
+            as-emitted by the server, no extra whitespace). RFC 8785 canonical
+            JSON is NOT used.
+          example: ZVs91ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+      required: [payload, signature]
+
+    WebhookPayload:
+      type: object
+      description: |
+        The event envelope inside a webhook delivery. Wraps the event metadata,
+        the per-event `data` block, and an `metadata` block with API version /
+        environment.
+
+        **Lookup conventions inside `data.order`**
+
+        | Looking for | Read from `data.order` |
+        |---|---|
+        | The bank tx that just confirmed | `fiatDepositTransactions` — last entry by `confirmedAt` |
+        | The on-chain tx that just settled | `cryptoSettlementTransactions` — last entry by `confirmedAt` |
+        | Failure reason | `failureReason` |
+        | When fiat was confirmed | `fiatReceivedAt` |
+        | When inventory debit completed | `tradeExecutedAt` |
+        | When on-chain settled | `settledAt` |
+
+        **Events**
+
+        | Event | Fires when | Post-event `data.order.orderStatus` |
+        |---|---|---|
+        | `ORDER_CREATED` | acceptQuote bound; bank accounts issued | `ORDER_CREATED` |
+        | `PARTIAL_FIAT_RECEIVED` | Ops confirms a partial wire | `PARTIAL_FIAT_RECEIVED` |
+        | `FIAT_RECEIVED` | Ops confirms full fiat (CL1 settled) | `FIAT_RECEIVED` |
+        | `TRADE_EXECUTED` | Inventory debited at locked rate | `TRADE_EXECUTED` |
+        | `TRADE_SETTLED` ✓ | Crypto on-chain confirmed (always full amount) | `TRADE_SETTLED` |
+        | `ORDER_EXPIRED` | Window elapsed without full fiat | `ORDER_EXPIRED` |
+        | `FAILED` ✗ | Terminal failure | `FAILED` |
+      properties:
+        eventType:
+          type: string
+          enum:
+            - ORDER_CREATED
+            - PARTIAL_FIAT_RECEIVED
+            - FIAT_RECEIVED
+            - TRADE_EXECUTED
+            - TRADE_SETTLED
+            - ORDER_EXPIRED
+            - FAILED
+          example: FIAT_RECEIVED
+        id:
+          type: string
+          format: uuid
+          description: |
+            Unique webhook delivery ID. Stable across retries of the same
+            delivery — clients should use this as the primary dedupe key.
+          example: 11e0177f-25d5-5cbe-9aba-1c46cb66f69d
+        currentWebhookCallAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of this delivery attempt
+          example: "2026-06-07T12:16:10.273Z"
+        eventTriggerAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the event originally fired server-side
+          example: "2026-06-07T12:16:07.813Z"
+        firstWebhookCallAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the first delivery attempt
+          example: "2026-06-07T12:16:08.958Z"
+        retryNum:
+          type: integer
+          minimum: 0
+          description: |
+            Number of delivery attempts so far. Starts at 0 on first delivery
+            and increments on each retry. The webhook `id` stays the same
+            across retries.
+          example: 0
+        data:
+          $ref: "#/components/schemas/WebhookData"
+        metadata:
+          $ref: "#/components/schemas/WebhookMetadata"
+      required: [eventType, id, currentWebhookCallAt, eventTriggerAt, firstWebhookCallAt, retryNum, data, metadata]
+
+    WebhookData:
+      type: object
+      description: |
+        Per-event data block. Carries the business identifiers and the full
+        order snapshot. There are no event-specific top-level fields — the
+        `order` snapshot already includes everything needed to interpret the
+        event (`order.orderStatus`, populated timestamp fields, history arrays).
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Stable order identifier, present on every event for this order
+          example: 73797374-656d-4000-0000-00008badf00d
+        clientOrderId:
+          type: string
+          description: Client-defined order reference (echoed if provided on acceptQuote)
+          example: hubpay-onramp-12345
+        order:
+          allOf:
+            - $ref: "#/components/schemas/OrderStatusResponse"
+            - description: |
+                Full snapshot of the order resource, identical in shape to the
+                `GET /onramp/orderStatus` response. Reflects the **post-event
+                state** — `orderStatus`, timestamp fields (`fiatReceivedAt`,
+                `tradeExecutedAt`, `settledAt`), and history arrays
+                (`fiatDepositTransactions`, `cryptoSettlementTransactions`) are
+                all updated to reflect that this event has just been applied.
+      required: [orderId, order]
+
+    WebhookMetadata:
+      type: object
+      description: Delivery metadata (API version, environment) — same shape as Convert-to-Pay.
+      properties:
+        apiVersion:
+          type: string
+          example: "1.0"
+        environment:
+          type: string
+          enum: [production, staging]
+          example: production
+      required: [apiVersion, environment]
+
+# ============================================================================
+# Webhook Examples — one per event type (full WebhookEnvelope payload)
+# ============================================================================
+# Inline examples for each webhook event. Clients can use these to validate
+# their parser implementations. Each example is the complete request body
+# Hex Trust delivers to the client's callback URL.
+#
+# The `signature` field carries the base64-encoded Ed25519 signature over
+# the bytes produced by `json.Marshal(payload)` (Go's encoding/json output).
+# Clients verify with Hex Trust's Ed25519 public key, distributed out-of-band
+# by the HT relationship manager at onboarding. Example signatures below are
+# placeholders.
+
+x-webhook-examples:
+  # All 7 examples below share the same orderId / quoteId / clientOrderId so
+  # they can be read as a coherent narrative of one order's lifecycle.
+  # The `data.order` snapshot in each event reflects post-event state.
+  # `payload.id` is unique per webhook event; `signature` values are placeholders.
+
+  ORDER_CREATED:
+    summary: Quote bound; bank instructions issued to client (multiple options across banks × rails)
+    value:
+      payload:
+        eventType: ORDER_CREATED
+        id: 11e0177f-25d5-5cbe-9aba-1c46cb66f600
+        currentWebhookCallAt: "2026-03-04T22:24:19.273Z"
+        eventTriggerAt: "2026-03-04T22:24:16.789Z"
+        firstWebhookCallAt: "2026-03-04T22:24:17.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: ORDER_CREATED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - beneficiaryName: Hex Trust Markets Ltd
+                beneficiaryAddress: 123 Market Street, Suite 100, Saint Vincent and the Grenadines
+                bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                routingNumber: "026002561"
+                currency: USD
+              - beneficiaryName: Hex Trust Markets Ltd
+                beneficiaryAddress: 123 Market Street, Suite 100, Saint Vincent and the Grenadines
+                bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions: []
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE1ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  PARTIAL_FIAT_RECEIVED:
+    summary: Ops confirmed a partial wire; trader will decide to amend the order or reject
+    value:
+      payload:
+        eventType: PARTIAL_FIAT_RECEIVED
+        id: 22e0177f-25d5-5cbe-9aba-1c46cb66f601
+        currentWebhookCallAt: "2026-03-05T22:10:03.273Z"
+        eventTriggerAt: "2026-03-05T22:10:00.000Z"
+        firstWebhookCallAt: "2026-03-05T22:10:01.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: PARTIAL_FIAT_RECEIVED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - beneficiaryName: Hex Trust Markets Ltd
+                bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                routingNumber: "026002561"
+                currency: USD
+              - beneficiaryName: Hex Trust Markets Ltd
+                bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            receivedFiatAmount: "60000.00"
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions:
+              - bankTxId: SCB20260527000122
+                amount: "60000.00"
+                currency: USD
+                valueDate: 1741200000000
+                confirmedAt: 1741209000000
+                originatingBank: HSBC HONG KONG
+                status: CONFIRMED
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE2ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  FIAT_RECEIVED:
+    summary: Full fiat amount confirmed by ops (CL1 settled); trade proceeds
+    value:
+      payload:
+        eventType: FIAT_RECEIVED
+        id: 33e0177f-25d5-5cbe-9aba-1c46cb66f602
+        currentWebhookCallAt: "2026-03-05T22:26:43.273Z"
+        eventTriggerAt: "2026-03-05T22:26:40.000Z"
+        firstWebhookCallAt: "2026-03-05T22:26:41.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: FIAT_RECEIVED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - beneficiaryName: Hex Trust Markets Ltd
+                bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                routingNumber: "026002561"
+                currency: USD
+              - beneficiaryName: Hex Trust Markets Ltd
+                bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            fiatReceivedAt: 1741210000000
+            receivedFiatAmount: "100000.00"
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions:
+              - bankTxId: SCB20260527000123
+                amount: "100000.00"
+                currency: USD
+                valueDate: 1741200000000
+                confirmedAt: 1741210000000
+                originatingBank: HSBC HONG KONG
+                status: CONFIRMED
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE3ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  TRADE_EXECUTED:
+    summary: Inventory debited at locked rate; on-chain send queued
+    value:
+      payload:
+        eventType: TRADE_EXECUTED
+        id: 44e0177f-25d5-5cbe-9aba-1c46cb66f603
+        currentWebhookCallAt: "2026-03-05T22:27:33.273Z"
+        eventTriggerAt: "2026-03-05T22:27:30.000Z"
+        firstWebhookCallAt: "2026-03-05T22:27:31.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: TRADE_EXECUTED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                currency: USD
+              - bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            fiatReceivedAt: 1741210000000
+            tradeExecutedAt: 1741210050000
+            receivedFiatAmount: "100000.00"
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions:
+              - bankTxId: SCB20260527000123
+                amount: "100000.00"
+                currency: USD
+                valueDate: 1741200000000
+                confirmedAt: 1741210000000
+                status: CONFIRMED
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE4ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  TRADE_SETTLED:
+    summary: Stablecoin on-chain confirmed to client wallet (terminal — success)
+    value:
+      payload:
+        eventType: TRADE_SETTLED
+        id: 55e0177f-25d5-5cbe-9aba-1c46cb66f604
+        currentWebhookCallAt: "2026-03-06T23:26:43.273Z"
+        eventTriggerAt: "2026-03-06T23:26:40.000Z"
+        firstWebhookCallAt: "2026-03-06T23:26:41.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: TRADE_SETTLED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                currency: USD
+              - bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            fiatReceivedAt: 1741210000000
+            tradeExecutedAt: 1741210050000
+            settledAt: 1741300000000
+            receivedFiatAmount: "100000.00"
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions:
+              - bankTxId: SCB20260527000123
+                amount: "100000.00"
+                currency: USD
+                valueDate: 1741200000000
+                confirmedAt: 1741210000000
+                status: CONFIRMED
+            cryptoSettlementTransactions:
+              - txHash: "0x7c8a9b3f4e5d6c2a1b9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6"
+                chainId: "1"
+                amount: "99950.00"
+                asset: USDC
+                from: "0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE"
+                to: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+                confirmedAt: 1741300000000
+                status: CONFIRMED
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE5ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  ORDER_EXPIRED:
+    summary: Window elapsed with no wire (or only a partial wire that wasn't resolved)
+    value:
+      payload:
+        eventType: ORDER_EXPIRED
+        id: 66e0177f-25d5-5cbe-9aba-1c46cb66f605
+        currentWebhookCallAt: "2026-03-06T22:24:19.273Z"
+        eventTriggerAt: "2026-03-06T22:24:16.789Z"
+        firstWebhookCallAt: "2026-03-06T22:24:17.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: ORDER_EXPIRED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                currency: USD
+              - bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            receivedFiatAmount: "0.00"
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions: []
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE6ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
+
+  FAILED:
+    summary: Terminal failure — trader rejected partial; refund initiated to originating bank
+    value:
+      payload:
+        eventType: FAILED
+        id: 77e0177f-25d5-5cbe-9aba-1c46cb66f606
+        currentWebhookCallAt: "2026-03-05T23:50:03.273Z"
+        eventTriggerAt: "2026-03-05T23:50:00.000Z"
+        firstWebhookCallAt: "2026-03-05T23:50:01.958Z"
+        retryNum: 0
+        data:
+          orderId: 73797374-656d-4000-0000-00008badf00d
+          clientOrderId: hubpay-onramp-12345
+          order:
+            orderId: 73797374-656d-4000-0000-00008badf00d
+            quoteId: 73797374-656d-4000-8000-00008badf00d
+            clientOrderId: hubpay-onramp-12345
+            orderStatus: FAILED
+            fiatCurrency: USD
+            fiatAmount: "100000.00"
+            cryptoCurrency: USDC
+            cryptoAmount: "99950.00"
+            lockedRate: "0.99950"
+            inverseRate: "1.00050"
+            bankAccounts:
+              - bankName: Standard Chartered Bank
+                accountNumber: "01234567890123"
+                swiftCode: SCBLUS33XXX
+                currency: USD
+              - bankName: BCB Bank
+                accountNumber: "98765432101234"
+                routingNumber: "021000089"
+                currency: USD
+            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
+            chainId: "1"
+            chainName: ethereum
+            expiresAt: 1741296256789
+            createTime: 1741123456789
+            receivedFiatAmount: "60000.00"
+            failureReason: Trader rejected partial fiat amount; refund initiated to originating bank
+            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
+            fiatDepositTransactions:
+              - bankTxId: SCB20260527000122
+                amount: "60000.00"
+                currency: USD
+                valueDate: 1741200000000
+                confirmedAt: 1741209000000
+                status: CONFIRMED
+            cryptoSettlementTransactions: []
+        metadata:
+          apiVersion: "1.0"
+          environment: production
+      signature: FAKE7ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
