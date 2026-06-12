@@ -6,12 +6,11 @@ review.  It contains:
 | File | Purpose |
 |---|---|
 | `statements_mockup.html` | Interactive HTML mockup of the new **Monthly Statements** screen inside the new **Reporting Hub** in HexSafe. Reporting Hub sits in the avatar dropdown menu (between *Settings* and *Help Center*) and opens as a **full-page takeover** — no left sidebar, no per-Enterprise context. A *Back to Custody Wallet* button in the top bar returns the user to the main HexSafe app. Single file, no external dependencies — open it in any modern browser. |
-| `sample-statements/Custody_Simplified_sample.{pdf,docx}` | Custody — Simplified view. |
-| `sample-statements/Custody_Detailed_sample.{pdf,docx}` | Custody — Detailed view. |
-| `sample-statements/OTCTrading_Simplified_sample.{pdf,docx}` | OTC Trading — Simplified view. |
-| `sample-statements/OTCTrading_Detailed_sample.{pdf,docx}` | OTC Trading — Detailed view. |
-| `sample-statements/Loans_Simplified_sample.{pdf,docx}` | Loans — Simplified view (positions + period interest). |
-| `sample-statements/Loans_Detailed_sample.{pdf,docx}` | Loans — Detailed view (positions + period interest + margin events). |
+| `sample-statements/Custody_Detailed_sample.{pdf,docx}` | Custody — Detailed view (v1). |
+| `sample-statements/OTCTrading_Detailed_sample.{pdf,docx}` | OTC Trading — Detailed view (v1). |
+| `sample-statements/Loans_Detailed_sample.{pdf,docx}` | Loans — Detailed view (v2 scope; sample included for reference). |
+
+> **v1 scope:** Detailed view only. Simplified view variant dropped from the product. Custody + OTC Trading ship in v1; Loans deferred to v2.
 
 ## How to view
 
