@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>On-Ramp Trading API — Business Flow (DvP-atomic)</title>
+<style>
+  body {
+    background: #0f172a;
+    margin: 0;
+    padding: 32px 20px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #e2e8f0;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 {
+    text-align: center;
+    color: #7dd3fc;
+    font-size: 22px;
+    margin: 0 0 4px;
+    font-weight: 600;
+  }
+  p.sub { text-align: center; color: #64748b; font-size: 13px; margin: 0 0 4px; }
+  p.meta { font-size: 12px; color: #64748b; text-align: center; margin-bottom: 32px; }
+  h2 {
+    color: #93c5fd;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+    margin-top: 48px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  h3 { color: #cbd5e1; font-size: 14px; font-weight: 600; margin-top: 24px; }
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+  .adr { border-left: 3px solid #38bdf8; }
+  .flag { border-left: 3px solid #f59e0b; }
+  .note { border-left: 3px solid #86efac; }
+  .mermaid { background: #fff; border-radius: 8px; padding: 18px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  th, td { border: 1px solid #334155; padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #172554; color: #93c5fd; font-weight: 600; }
+  td.center { text-align: center; }
+  code { background: #0f172a; color: #fbbf24; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .pill-rec { background: #14532d; color: #86efac; }
+  .terminal-ok { color: #86efac; }
+  .terminal-fail { color: #fca5a5; }
+  ul { line-height: 1.65; font-size: 14px; }
+  li { margin: 4px 0; }
+  .strike { color: #64748b; text-decoration: line-through; }
+  .banner {
+    background: #14532d;
+    border: 1px solid #22c55e;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin: 12px 0 24px;
+    font-size: 13px;
+    color: #bbf7d0;
+    text-align: center;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    sequence: { actorMargin: 70, messageFontSize: 12, noteFontSize: 12, mirrorActors: false },
+    themeVariables: { fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }
+  });
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<h1>On-Ramp Trading API — Business Flow</h1>
+<p class="sub">DvP-atomic model · Stablecoin Phase 1 · For business &amp; UX alignment</p>
+<p class="meta">Draft 2026-05-27 · rock.zeng · confirmed with Rohit (stablecoin-only · inventory-only · settle-after-fiat-confirmed)</p>
+
+<div class="banner">
+  This design supersedes the pre-fund draft (<code>flowchart.html</code>) — preserved as Phase 2 reference.
+</div>
+
+<!-- ============================================================ -->
+<h2>1. Scope</h2>
+<div class="card">
+<table>
+<thead><tr><th></th><th>Convert-to-Pay (off-ramp, today)</th><th>On-Ramp (this spec)</th></tr></thead>
+<tbody>
+<tr><td><b>Direction</b></td><td>crypto in → fiat out</td><td><b>fiat in → crypto out</b></td></tr>
+<tr><td><b>Crypto leg</b></td><td>any supported asset</td><td><b>stablecoins only (Phase 1)</b> — USDC, USDT</td></tr>
+<tr><td><b>Price source</b></td><td>(derived from FX + LP)</td><td><b>LP quote — Ripple (Phase 1)</b>, spread applied</td></tr>
+<tr><td><b>Trade execution</b></td><td>LP hedge (Haruko routing)</td><td><b>from Hex Trust inventory</b> (no LP trade per order)</td></tr>
+<tr><td><b>Funding model</b></td><td>atomic (deposit address per quote)</td><td><b>atomic (shared HTM bank account)</b></td></tr>
+<tr><td><b>CL1 confirmation</b></td><td>auto (on-chain detection)</td><td><b>manual ops</b> via HexAdmin</td></tr>
+<tr><td><b>Client holds a balance?</b></td><td>no</td><td><b>no</b> — fiat is in-flight only</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+<b>Jurisdiction scoping (implicit, server-side):</b> all responses filter by the requesting client's onboarded Hex Trust entity (SVG / SG / UAE / HK …) — each carries its own licensed scope of fiat, stablecoins, and chains. Phase 1 launches under <b>SVG</b>.
+<br/><br/>
+Three Phase-1 constraints from Rohit dissolve the rate-lock-over-slow-wire concern: stablecoins (rate ±0.1%), inventory-only (no LP race), DvP gate (ops-confirmed). See ADR-001.
+</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. Architecture decisions</h2>
+
+<div class="card adr">
+<h3 style="margin-top:0">ADR-001 — DvP-atomic (not pre-fund)</h3>
+<p style="font-size:13px"><b>Decision:</b> Atomic per-quote orders. <code>acceptQuote</code> returns bank account + reference, client wires fiat, ops manually confirms CL1, crypto settles to client wallet. <b>Hex Trust does NOT hold client fiat balances</b> — fiat is in-flight only.</p>
+<p style="font-size:13px"><b>Why:</b></p>
+<ul style="font-size:13px">
+<li><b>Stablecoin inventory</b> → rate-lock during multi-day wire carries near-zero FX risk (USDC/USDT track fiat ±0.1%).</li>
+<li><b>Decoupled price source vs execution venue</b> → LP (Ripple Phase 1) provides the <b>live price</b> at <code>getQuote</code> time; the <b>trade executes from Hex Trust inventory</b>, not against the LP. The locked rate can be held for the full order window without forcing a short LP-hedge window. Hex Trust absorbs LP-price drift during the window — safe for stablecoins.</li>
+<li><b>DvP via ops</b> → manual CL1 confirmation in HexAdmin is the gate satisfying "settle to us before we settle to you."</li>
+</ul>
+<p style="font-size:13px"><b>Consequences:</b> no client balance → no e-money / SVF / safeguarding scope debate (§9). API near-perfect mirror of CTP. Pre-fund model preserved for Phase 2.</p>
+</div>
+
+<div class="card adr">
+<h3 style="margin-top:0">ADR-002 — Separate endpoint set (<code>/onramp/*</code>) — unchanged</h3>
+<p style="font-size:13px"><code>/onramp/*</code> parallel to <code>/convert-to-pay/*</code>. Future <code>/swap/*</code> for crypto-to-crypto. Symmetry enforced (auth, webhook envelope, error namespace, pagination) so a future unified <code>/trade/*</code> is a docs-only re-skin.</p>
+</div>
+
+<div class="card adr">
+<h3 style="margin-top:0">ADR-003 — Phase 1 scope freeze</h3>
+<p style="font-size:13px"><b>Decision:</b> this design holds explicitly for <b>stablecoin Phase 1 with inventory-funded execution</b>. Phase 2 (volatile pairs or LP-hedged) reopens ADR-001 — revisit pre-fund or re-quote-at-arrival. <b>Do not retrofit this design blindly.</b></p>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Endpoints — near-perfect mirror of Convert-to-Pay</h2>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Convert-to-Pay (off-ramp)</th><th>On-ramp (this spec)</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td class="center">1</td><td><code>GET /convert-to-pay/availablePairs</code></td><td><code>GET /onramp/availablePairs</code></td><td>Supported (fiat → stablecoin) pairs with min/max</td></tr>
+<tr><td class="center">2</td><td><code>GET /convert-to-pay/assetInfo</code></td><td><code>GET /onramp/assetInfo</code></td><td>Asset metadata (decimal, symbol, chain)</td></tr>
+<tr><td class="center">3</td><td><code>POST /convert-to-pay/getQuote</code></td><td><code>POST /onramp/getQuote</code></td><td>Quote — informational; includes inventory pre-check</td></tr>
+<tr><td class="center">4</td><td><code>POST /convert-to-pay/acceptQuote</code> → crypto deposit address</td><td><code>POST /onramp/acceptQuote</code> → <b>fiat bank account + reference</b></td><td>Bind quote → return payment instructions</td></tr>
+<tr><td class="center">5</td><td><code>GET /convert-to-pay/paymentStatus</code></td><td><code>GET /onramp/orderStatus</code></td><td>Query order state by <code>orderId</code></td></tr>
+<tr><td class="center">6</td><td><code>GET /convert-to-pay/paymentHistory</code></td><td><code>GET /onramp/orderHistory</code></td><td>List orders over a date range</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+A client integrating Convert-to-Pay can integrate on-ramp in days, not weeks.
+</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. Order state machine</h2>
+<div class="card">
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> ORDER_CREATED : acceptQuote
+
+    ORDER_CREATED --> PARTIAL_FIAT_RECEIVED : partial wire within window
+    ORDER_CREATED --> FIAT_RECEIVED : full wire within window
+    ORDER_CREATED --> ORDER_EXPIRED : window expires, no wire
+
+    PARTIAL_FIAT_RECEIVED --> FIAT_RECEIVED : top-up reaches full<br/>OR trader updates order amount
+    PARTIAL_FIAT_RECEIVED --> ORDER_EXPIRED : window expires with partial
+
+    FIAT_RECEIVED --> TRADE_EXECUTED : inventory debit at locked rate
+    ORDER_EXPIRED --> FAILED : refund partial (per re-quote / refund flow)
+
+    TRADE_EXECUTED --> TRADE_SETTLED : full crypto delivered
+
+    TRADE_SETTLED --> [*]
+
+    ORDER_CREATED --> FAILED : ops reject / sanctions
+    PARTIAL_FIAT_RECEIVED --> FAILED : trader rejects partial
+    FIAT_RECEIVED --> FAILED
+    TRADE_EXECUTED --> FAILED : on-chain failure
+    FAILED --> [*]
+</div>
+
+<h3>State definitions</h3>
+<table>
+<thead><tr><th>State</th><th>What it means</th><th>Driven by</th></tr></thead>
+<tbody>
+<tr><td><code>ORDER_CREATED</code></td><td>Quote accepted, rate locked, bank account issued, awaiting fiat</td><td>Client</td></tr>
+<tr><td><code>PARTIAL_FIAT_RECEIVED</code></td><td>Wire(s) received, cumulative &lt; <code>fiatAmount</code></td><td>Bank → Ops</td></tr>
+<tr><td><code>FIAT_RECEIVED</code></td><td>Full fiat confirmed by ops (CL1 settled)</td><td>Ops</td></tr>
+<tr><td><code>TRADE_EXECUTED</code></td><td>Inventory debited at locked rate (internal accounting; no LP)</td><td>System</td></tr>
+<tr><td class="terminal-ok"><code>TRADE_SETTLED</code> ✓</td><td>Stablecoin on-chain confirmed to client wallet (terminal) — always full amount in one shot</td><td>Custody</td></tr>
+<tr><td><code>ORDER_EXPIRED</code></td><td>Window elapsed; partial wires get re-quoted (new order) or refunded</td><td>System</td></tr>
+<tr><td class="terminal-fail"><code>FAILED</code> ✗</td><td>Terminal failure (ops reject, sanctions, on-chain failure, refund)</td><td>Ops / System</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Sequence diagram</h2>
+<div class="card">
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Gateway as API Gateway<br/>(hexsafe-2-rest-api-gateway)
+    participant Webhook as Webhook Service
+    participant OMS as OMS<br/>(htm-oms)
+    participant RFQ as RFQ Engine<br/>(htm-rfq-engine)
+    participant Settlement as Settlement Engine<br/>(htm-htm-settlement-engine)
+    participant LP as LP (Ripple)
+    participant Inventory as Inventory Management System<br/>(TBD)
+    participant Ops as Ops (HexAdmin)
+    participant Bank as Bank (Zand/BCB)
+    participant Custody as HexSafe Custody
+
+    rect rgb(219, 234, 254)
+    Note over Client,Gateway: 1. Discovery
+    Client->>Gateway: GET /onramp/availablePairs
+    Gateway->>OMS: get supported pairs
+    OMS-->>Gateway: pairs list
+    Gateway-->>Client: [ { USD->USDC, min, max }, ... ]
+    end
+
+    rect rgb(219, 234, 254)
+    Note over Client,LP: 2. Quote - price from LP (chain bound to quote)
+    Client->>Gateway: POST /onramp/getQuote { USD->USDC, chainId:"1", 100000 }
+    Gateway->>OMS: forward
+    OMS->>LP: Request indicative price (Ripple)
+    LP-->>OMS: Live price
+    OMS->>OMS: Apply spread
+    OMS-->>Gateway: { quoteId, ratio, chainId, validUntil }
+    Gateway-->>Client: { quoteId, fiatAmount, cryptoAmount, ratio, chainId, validUntil }
+    end
+
+    rect rgb(219, 234, 254)
+    Note over Client,RFQ: 3. Accept quote - bank account returned
+    Client->>Gateway: POST /onramp/acceptQuote { quoteId }
+    Gateway->>OMS: forward
+    OMS->>OMS: Lock rate · resolve cryptoDestination from trading-client default · create order
+    OMS->>RFQ: Create Client Trade (status: NEW)
+    OMS-->>Gateway: { orderId, bankAccounts[], expiresAt, cryptoDestination }
+    Gateway-->>Client: { orderId, bankAccounts:[bankA, bankB, ...], cryptoDestination, expiresAt, status:ORDER_CREATED }
+    OMS->>Webhook: Trigger ORDER_CREATED
+    Webhook-->>Client: 🔔 ORDER_CREATED
+    end
+
+    rect rgb(254, 243, 199)
+    Note over Client,Bank: 4. Client wires fiat
+    Client->>Bank: SWIFT / Fedwire / SEPA / AED wire to HTM shared bank account
+    Bank-->>Ops: Wire arrives (statement / bank API)
+    end
+
+    rect rgb(254, 243, 199)
+    Note over Ops,RFQ: 5. Ops manually confirms CL1 - DvP gate
+    Ops->>Settlement: Confirm fiat received via HexAdmin
+    Settlement->>OMS: Notify fiat received (CL1)
+    OMS->>RFQ: Update Client Trade (status: Client_Settled_In)
+    OMS->>Webhook: Trigger FIAT_RECEIVED
+    Webhook-->>Client: 🔔 FIAT_RECEIVED
+    end
+
+    rect rgb(209, 250, 229)
+    Note over Settlement,RFQ: 6. Internal - debit inventory at locked rate
+    Settlement->>Inventory: Debit cryptoAmount (no LP hedge)
+    Note right of Inventory: If insufficient liquidity:<br/>automation fails → Slack notify<br/>traders/ops → manual settlement
+    Inventory-->>Settlement: Confirmed
+    Settlement->>OMS: Notify ready for executing
+    OMS->>RFQ: Update Client Trade (status: BOOKED)
+    OMS->>Webhook: Trigger TRADE_EXECUTED
+    Webhook-->>Client: 🔔 TRADE_EXECUTED
+    end
+
+    rect rgb(209, 250, 229)
+    Note over Settlement,Custody: 7. Crypto settled to whitelisted wallet - CL2
+    Settlement->>Custody: Send stablecoin to whitelisted wallet<br/>(HexSafe address or external address)
+    Custody-->>Settlement: On-chain confirmed
+    Settlement->>OMS: Notify CL2 settled
+    OMS->>Webhook: Trigger TRADE_SETTLED
+    Webhook-->>Client: 🔔 TRADE_SETTLED ✓
+    end
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. Webhook events — mirror of Convert-to-Pay</h2>
+<div class="card">
+<p style="font-size:12px;color:#94a3b8">
+<b>Payload shape</b> — CTP-style envelope: <code>{ payload: { eventType, id, currentWebhookCallAt, eventTriggerAt, firstWebhookCallAt, retryNum, data: { orderId, clientOrderId, order }, metadata }, signature }</code>. The <code>data.order</code> field is a full order snapshot (identical to <code>GET /orderStatus</code> response), reflecting post-event state. Clients dedupe by <code>payload.id</code>. Signature is base64-encoded <b>Ed25519</b> over the JSON-marshaled <code>payload</code> field (asymmetric — client verifies with Hex Trust's public key distributed at onboarding).
+</p>
+<table>
+<thead><tr><th>CTP event</th><th>On-ramp event</th><th>Fires when</th></tr></thead>
+<tbody>
+<tr><td><code>QUOTE_ACCEPTED</code></td><td><code>ORDER_CREATED</code></td><td>acceptQuote bound; bank accounts issued</td></tr>
+<tr><td><code>PARTIAL_DEPOSIT_RECEIVED</code></td><td><code>PARTIAL_FIAT_RECEIVED</code></td><td>Ops confirms partial wire</td></tr>
+<tr><td><code>DEPOSITED</code></td><td><code>FIAT_RECEIVED</code></td><td>Ops confirms full fiat (CL1)</td></tr>
+<tr><td><code>PAYMENT_EXECUTED</code></td><td><code>TRADE_EXECUTED</code></td><td>Inventory debited at locked rate</td></tr>
+<tr class="terminal-ok"><td><code>SETTLED_FULL_AMOUNT</code> ✓</td><td><code>TRADE_SETTLED</code> ✓</td><td>Crypto on-chain confirmed (always full amount in one shot)</td></tr>
+<tr><td><code>QUOTE_EXPIRED</code></td><td><code>ORDER_EXPIRED</code></td><td>Window elapsed; no/partial wire (handled per re-quote / refund flow)</td></tr>
+<tr class="terminal-fail"><td><code>FAILED</code> ✗</td><td><code>FAILED</code> ✗</td><td>Terminal failure</td></tr>
+</tbody>
+</table>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+Same envelope as CTP: at-least-once, Ed25519-signed (in body), flat per-webhook-URL retry interval configured at onboarding, dedupe by <code>payload.id</code>. Webhook delivery to clients is handled by the <b>Webhook Service</b>, triggered by <b>OMS</b>. OMS is the central coordinator: it receives state-change notifications (from Settlement Engine), propagates them to RFQ Engine, and triggers the Webhook Service to fire the corresponding webhook. The API Gateway handles only inbound REST traffic.
+</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. What's different from Convert-to-Pay</h2>
+<div class="card">
+<p style="font-size:13px">Three differences, all consequences of fiat being slow:</p>
+<ol style="font-size:13px">
+<li><b>DvP gate on settlement.</b> CTP: on-chain crypto deposit confirms (fast, auto), fiat payout fires. On-ramp: <b>ops manually confirms CL1</b> in HexAdmin before CL2 fires. Same state machine, different trigger source.</li>
+<li><b>Inventory check at quote time.</b> <code>getQuote</code> verifies enough stablecoin inventory to honour the trade (above a floor reserve). CTP has no inventory dependency.</li>
+<li><b>Refund destination is the originating bank account only.</b> Source-of-funds match. CTP refunds crypto to the sending on-chain address (well-defined); fiat refunds need explicit bank-account matching for compliance.</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. Inventory considerations</h2>
+<div class="card">
+<p style="font-size:13px"><b>Inventory management is NOT a blocker for the on-ramp API.</b> Phase 1 deliberately keeps inventory logic minimal — automation falls back to manual when liquidity is insufficient.</p>
+<table>
+<thead><tr><th>Concern</th><th>Phase 1</th></tr></thead>
+<tbody>
+<tr><td>Price source at quote</td><td>LP (Ripple) — live indicative price + Hex Trust spread</td></tr>
+<tr><td>Inventory pre-check at quote</td><td>Not required for day 1. <code>getQuote</code> does not gate on inventory level</td></tr>
+<tr><td>Insufficient inventory at execution time</td><td><b>Automation fails</b> → Slack notification to traders + ops → manual settlement</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>9. Regulatory note — significant simplification vs pre-fund</h2>
+<div class="card note">
+<p style="font-size:13px">Compared to pre-fund (rejected in ADR-001), DvP-atomic eliminates the client-money question:</p>
+<ul style="font-size:13px">
+<li><b>No client fiat balance held</b> → no e-money / SVF / account-issuance / safeguarding scope debate.</li>
+<li><b>Fiat in-flight</b> during the order window fits cleanly under Singapore MPI's <b>Cross-Border Money Transfer Services</b> + <b>DPT Services</b>.</li>
+<li><b>The trade itself</b> fits VARA <b>Broker-Dealer Services</b> + MAS MPI <b>DPT OTC Trading</b>.</li>
+<li><b>HK trustee structure</b> unaffected.</li>
+<li><b>Path A</b> (partner bank holds fiat in safeguarded/FBO account at Zand/BCB) applies trivially.</li>
+</ul>
+<p style="font-size:13px">Compliance sign-off still recommended on <b>order window length</b> and <b>refund flow</b>, but the gating client-money question is no longer in play.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>10. UX / design decisions</h2>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Decision</th><th>Options</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td><b>D1</b></td><td>Order window (acceptQuote → fiat arrival)</td><td>(a) 24h / (b) 48h / (c) 72h</td><td><span class="pill pill-rec">48h</span> override to 72h for SWIFT</td></tr>
+<tr><td><b>D2</b></td><td>Late wire (after expiresAt)</td><td>(a) auto-refund / (b) re-quote at receipt</td><td><span class="pill pill-rec">re-quote</span> original expires; system issues new quote at wire receipt, client confirms or refunds</td></tr>
+<tr><td><b>D3</b></td><td>Overpayment</td><td>(a) manual refund / (b) book another trade at prevailing rate for the excess</td><td><b>Confirm with the client trade-by-trade</b> — both supported; ops asks per occurrence and proceeds with the chosen handling</td></tr>
+<tr><td><b>D4</b></td><td>Crypto destination scope</td><td>Per trading client: a default crypto address is configured per chain. The default must be a whitelisted address in the trading-client counterparty service</td><td>Whitelist is the source of truth; per-chain default is picked from it. If no default for the requested chain → automation fails (no per-order address override in Phase 1)</td></tr>
+<tr><td><b>D5</b></td><td>Quote validity (getQuote → acceptQuote)</td><td>(a) 30s / (b) 5 min / (c) 15 min</td><td><span class="pill pill-rec">5 min</span></td></tr>
+<tr><td><b>D6</b></td><td>Bank account model</td><td>(a) shared HTM bank account (no per-order reference) / (b) per-customer VAN / (c) hybrid</td><td><span class="pill pill-rec">(a) Phase 1</span> ops matches by amount + originating bank + timing</td></tr>
+<tr><td><b>D7</b></td><td>Ops confirmation UX</td><td>manual confirmation on the CL1 settlement screen in HexAdmin</td><td>reuses existing fiat settlement screen workflow</td></tr>
+<tr><td><b>D8</b></td><td>Partial fiat handling</td><td>No fixed threshold. Trader decides per case: execute partial (update order amount to match deposit, trade continues) OR reject + refund</td><td>Order resource must support an <b>amend amount</b> action available to traders</td></tr>
+<tr><td><b>D9</b></td><td>Travel Rule data</td><td>Capture from registered counterparty on the crypto-out leg</td><td><b>Required at Phase 1 launch</b> — Hex Trust's existing TR plumbing is reused</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>11. Open questions / Phase 1 launch parameters</h2>
+<div class="card">
+<table>
+<thead><tr><th></th><th>Answer (current)</th></tr></thead>
+<tbody>
+<tr><td><b>Stablecoin coverage</b></td><td>USDC + USDT to start; USDP / PYUSD / EURC / TUSD TBD</td></tr>
+<tr><td><b>Fiat coverage</b></td><td>USD, EUR, GBP, AED, SGD, HKD — priority TBD</td></tr>
+<tr><td><b>Minimum trade size</b></td><td>Very small floor, e.g. <b>10 USD</b></td></tr>
+<tr><td><b>Pilot client</b></td><td>Not identified yet</td></tr>
+<tr><td><b>Legal entity / jurisdiction</b></td><td><b>SVG</b> (St. Vincent and the Grenadines)</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2>12. Backlog / Phase 2 enhancements</h2>
+<div class="card">
+<p style="font-size:13px;color:#94a3b8">Tracked future enhancements — identified during design discussion but not scoped into Phase 1. Future entries appended here as design discussions surface them.</p>
+<table>
+<thead><tr><th>#</th><th>Item</th><th>Addresses</th><th>Approach</th></tr></thead>
+<tbody>
+<tr>
+<td><b>B1</b></td>
+<td><b>LP price sanity check</b></td>
+<td>Risk of single-source LP price (Ripple only Phase 1) — stale, erroneous, or manipulated quote propagates to client and Hex Trust eats the loss</td>
+<td>Cross-check Ripple's quote against a market reference (CoinGecko mid / Chainlink / a second LP). Reject or alert if outside ±X% band. Operator-configurable threshold per stablecoin.</td>
+</tr>
+<tr>
+<td><b>B2</b></td>
+<td><b>Per-pair on/off switch</b></td>
+<td>Operator needs to disable a specific trading pair (e.g. USDT temporarily unavailable, EUR rail down) without taking the whole API down</td>
+<td>Admin-only toggle per <code>(jurisdiction × pair × chain)</code> — disabled entries disappear from <code>/availablePairs</code> and return error from <code>getQuote</code> / <code>acceptQuote</code>.</td>
+</tr>
+<tr>
+<td><b>B3</b></td>
+<td><b>Global on/off switch for on-ramp API</b></td>
+<td>Operator needs a kill-switch covering the entire on-ramp surface for incident response / planned downtime / regulatory halt</td>
+<td>Admin-only toggle; when off, all on-ramp endpoints return a maintenance error. Existing in-flight orders continue to be processed (or held, configurable).</td>
+</tr>
+<tr>
+<td><b>B4</b></td>
+<td><b>Self-serve counterparty whitelist API</b></td>
+<td>Phase 1 has clients email/Slack ops to add or change whitelisted addresses; doesn't scale</td>
+<td>Expose REST endpoints (<code>GET / POST / PUT / DELETE /onramp/counterparty/addresses</code>) with address-ownership verification (small deposit + signature). Aligns with the trading-client counterparty service (<code>htm-htm-counterparty-service</code>).</td>
+</tr>
+<tr>
+<td><b>B5</b></td>
+<td><b>Inventory reservation at <code>acceptQuote</code></b></td>
+<td>Phase 1 risks <code>INSUFFICIENT_INVENTORY</code> at execution time after the client has already wired fiat → automation fails → manual ops settlement. Reservation eliminates this class of failure</td>
+<td>At <code>acceptQuote</code>, reserve <code>cryptoAmount</code> against the inventory pool with TTL = order window. Release on <code>ORDER_EXPIRED</code> / <code>FAILED</code>. Consume at <code>TRADE_EXECUTED</code>. Adds <code>INSUFFICIENT_INVENTORY</code> synchronous error on <code>acceptQuote</code>.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p class="meta" style="margin-top:48px">
+Source: <code>onramp_api/sequence-diagram-dvp.md</code> · Next: OpenAPI spec + tech design after business sign-off
+</p>
+
+</div>
+</body>
+</html>
