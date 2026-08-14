@@ -1,12 +1,25 @@
 openapi: 3.0.3
 info:
   title: Hex Trust — On-Ramp Trading API
-  version: "1.0"
+  version: "1.1"
   description: |
+    > **Changelog v1.1 (2026-08-14, aligned to implementation):**
+    > `clientOrderId` removed everywhere (request, responses, webhooks) —
+    > replaced by optional `clientUserId` on `acceptQuote`; optional
+    > `settlementAddress` per-order destination override on `acceptQuote`;
+    > `availablePairs` gains fiat/crypto min-max limits (JSON numbers,
+    > advisory) and `fiatCurrency`/`cryptoCurrency` query filters; error
+    > envelope documented as implemented (numeric codes, incl. -32045/-32046);
+    > webhook `data.order` gains best-effort `clientName`/`enterpriseName`/
+    > `hexBrokerEntityName`; LP is routed per broker entity (openFX/Binance/
+    > Ripple); `TRADE_EXECUTED` fires back-to-back with `FIAT_RECEIVED`.
+
     On-Ramp allows institutional clients to acquire stablecoins (USDC, USDT) by
-    paying fiat. Hex Trust quotes a rate from a liquidity provider (Ripple in
-    Phase 1), settles the trade from internal inventory, and delivers stablecoin
-    on-chain to the client's pre-configured whitelisted wallet.
+    paying fiat. Hex Trust quotes a rate from a liquidity provider (routed per
+    broker entity — openFX, Binance, or Ripple), settles the trade from internal
+    inventory, and delivers stablecoin on-chain to the client's whitelisted
+    wallet — the pre-configured default for the chain, or a per-order
+    `settlementAddress` override supplied on `acceptQuote`.
 
     ## Authentication
     Every request requires both:
@@ -18,15 +31,18 @@ info:
     not deliver crypto until ops manually confirms the client's fiat wire (CL1):
 
     1. `GET /onramp/availablePairs` — discover supported (fiat → stablecoin) pairs
-    2. `POST /onramp/getQuote` — get a live indicative quote; valid for ~5 min
+    2. `POST /onramp/getQuote` — get a live indicative quote; valid until
+       `validTimestamp` (LP-driven; may be extended by client spread config)
     3. `POST /onramp/acceptQuote` — bind the quote → receive **Hex Trust's shared
-       bank account details** + an `orderId`; the order has a 48h fulfilment window
+       bank account details** + an `orderId`; the order has a configurable
+       fulfilment window (default 48h)
     4. Client wires fiat to the returned bank account (no per-order reference
        required in the wire memo — ops matches by amount + originating bank +
        timing)
     5. Ops manually confirms CL1 in HexAdmin → `FIAT_RECEIVED` webhook fires
-    6. Settlement engine debits stablecoin inventory at the locked rate →
-       `TRADE_EXECUTED` webhook fires
+    6. The trade is booked at the locked rate immediately after the CL1
+       confirm → `TRADE_EXECUTED` webhook fires back-to-back with
+       `FIAT_RECEIVED` (expect the two in immediate succession)
     7. HexSafe custody delivers the stablecoin on-chain to the client's
        pre-configured whitelisted destination address (HexSafe vault or external
        wallet) → `TRADE_SETTLED` webhook fires (terminal)
@@ -54,15 +70,18 @@ info:
     partial deposit and then executes as a normal full settlement.
 
     ## Crypto Destination Resolution
-    The crypto destination (stablecoin delivery address) is **NOT** supplied by
-    the client per order. It is resolved server-side:
-    - Each trading client configures a **default address per chain** in the
-      trading-client counterparty service
-    - The default address must be a **whitelisted address** in that service
-    - At `acceptQuote` time, the system looks up the default for the requested
-      `chainId` and uses it as the on-chain destination
-    - If no default is configured for the requested chain, `acceptQuote` returns
-      an error (no per-order address override in Phase 1)
+    The crypto destination (stablecoin delivery address) is resolved at
+    `acceptQuote` time:
+    - If the request carries a `settlementAddress`, it is used — after
+      validation against the trading client's whitelisted addresses in the
+      counterparty service (or a HexSafe enterprise vault address). An address
+      matching neither is rejected with error `-32045`
+      (settlement address not valid / not in whitelist).
+    - Otherwise the **default address per chain** configured on the
+      trading-client counterparty service is used. The default must resolve to
+      an active whitelisted address; if no default is configured for the
+      quote's chain, `acceptQuote` returns error `-32046` (no settlement
+      address configured for this client).
 
     ## Jurisdiction Scoping
     Every response is filtered by the requesting client's **jurisdiction**,
@@ -96,10 +115,10 @@ info:
       record on the crypto-out leg
 
 servers:
-  - url: https://api.hexsafe.io/v1
+  - url: https://api.hexsafe.hextrust.com/v1
     description: Production
-  - url: https://api.staging.hexsafe.io/v1
-    description: Staging
+  - url: https://api.sandbox.hexsafe.hextrust.com/v1
+    description: Sandbox
 
 security:
   - APIKey: []
@@ -125,6 +144,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/XClientId"
         - $ref: "#/components/parameters/XEnterpriseId"
+        - name: fiatCurrency
+          in: query
+          required: false
+          description: Filter pairs by fiat currency (e.g. USD)
+          schema:
+            type: string
+        - name: cryptoCurrency
+          in: query
+          required: false
+          description: Filter pairs by stablecoin (e.g. USDC). Combined with fiatCurrency as AND.
+          schema:
+            type: string
       responses:
         "200":
           description: List of available pairs
@@ -206,12 +237,15 @@ paths:
         not need to be passed again.
 
         Returns an `orderId` to track the on-ramp order via `orderStatus` and
-        webhook events. The order window (default 48h, 72h for SWIFT pairs)
-        begins from this point — the client should wire fiat before `expiresAt`.
+        webhook events. The order window (configurable per environment, default
+        48h) begins from this point — the client should wire fiat before
+        `expiresAt`.
 
-        **Crypto destination is resolved server-side** from the trading-client's
-        default whitelisted address for the quote's chain. If no default is
-        configured, this endpoint returns `CRYPTO_DESTINATION_NOT_CONFIGURED`.
+        **Crypto destination** — pass an optional whitelisted
+        `settlementAddress` to override per order; otherwise the
+        trading-client's default whitelisted address for the quote's chain is
+        used. Errors: `-32045` (address not in whitelist), `-32046` (no
+        default configured for the chain).
       operationId: acceptQuote
       tags: [onramp]
       parameters:
@@ -364,29 +398,34 @@ components:
   schemas:
     Error:
       type: object
+      description: |
+        Hex Trust error envelope: `{code, message}` where `code` is numeric.
+
+        **HTTP status mapping** — gateway-level failures (binding/validation,
+        auth) return HTTP 400/401/403 with positive codes (e.g. `40001`
+        invalid request, `40100` unauthorized, `40300` permission denied).
+        Business errors from the trading service surface with **HTTP 500**
+        and a negative JSON-RPC code.
+
+        Key business codes (non-exhaustive):
+        - `-32602` — invalid params (malformed quoteId, both or neither of
+          `fiatAmount`/`cryptoAmount`, unsupported pair or chain, ...)
+        - `-32010` — LP relay failure. Also covers amounts outside the LP's
+          min/max limits (not pre-validated server-side) and transient LP
+          outages — safe to retry.
+        - `-32042` — conflict (quote already accepted)
+        - `-32043` — quote expired
+        - `-32045` — settlement address not valid / not found in whitelist
+        - `-32046` — no settlement address configured for this client + chain
+        - `-32047` / `-32048` — LP routing not configured for the client's
+          broker entity
       properties:
         code:
-          type: string
-          example: CRYPTO_DESTINATION_NOT_CONFIGURED
-          description: |
-            Error codes (non-exhaustive):
-            - `INVALID_REQUEST` — bad input
-            - `AMBIGUOUS_QUOTE_REQUEST` — both `fiatAmount` and `cryptoAmount` were provided, or neither; exactly one is required
-            - `UNAUTHORIZED` — auth failed
-            - `PAIR_NOT_SUPPORTED` — requested pair not in the available pairs catalogue
-            - `PAIR_NOT_AVAILABLE_IN_JURISDICTION` — pair exists but is not licensed for the requesting client's jurisdiction
-            - `CHAIN_NOT_SUPPORTED` — requested chain is not in the pair's `supportedChains`
-            - `CHAIN_NOT_AVAILABLE_IN_JURISDICTION` — chain exists but is not licensed for the requesting client's jurisdiction
-            - `PAIR_DISABLED` — pair temporarily disabled (admin switch — see backlog B2)
-            - `ONRAMP_DISABLED` — entire on-ramp API in maintenance (admin switch — see backlog B3)
-            - `QUOTE_EXPIRED` — quote validity window elapsed
-            - `QUOTE_NOT_FOUND` — quoteId unknown or already accepted
-            - `CRYPTO_DESTINATION_NOT_CONFIGURED` — no default whitelisted address for the quote's chain on the trading-client's counterparty record
-            - `MIN_AMOUNT_NOT_MET` — trade size below minimum
-            - `MAX_AMOUNT_EXCEEDED` — trade size above maximum
+          type: integer
+          example: -32046
         message:
           type: string
-          example: No default crypto destination configured for chain "1" — register a whitelisted address on the trading-client counterparty service first
+          example: No settlement address configured for this client
       required: [code, message]
 
     OrderStatus:
@@ -430,15 +469,29 @@ components:
           type: number
           minimum: 0
           description: |
-            Minimum trade size, expressed in the fiat currency. The on-ramp
-            is single-direction (fiat → crypto), so size is bounded on the
-            fiat side that the client wires; the crypto-side bound is derived
-            from the rate at quote time.
-          example: 10
+            Minimum trade size in the fiat currency, sourced from the routed
+            liquidity provider's limits.
+
+            NOTE — the four limit fields are JSON **numbers** (unlike amount
+            fields elsewhere in this API, which are strings), and they are
+            advisory: `getQuote` does not pre-validate against them. An
+            out-of-range amount is rejected by the LP and surfaces as error
+            `-32010`. Validate client-side before quoting.
+          example: 1
         fiatMaxAmount:
           type: number
           minimum: 0
-          description: Maximum trade size, expressed in the fiat currency.
+          description: Maximum trade size in the fiat currency (LP-sourced, advisory).
+          example: 2000000
+        cryptoMinAmount:
+          type: number
+          minimum: 0
+          description: Minimum trade size in the stablecoin (LP-sourced, advisory).
+          example: 10
+        cryptoMaxAmount:
+          type: number
+          minimum: 0
+          description: Maximum trade size in the stablecoin (LP-sourced, advisory).
           example: 2000000
         supportedChains:
           type: array
@@ -452,7 +505,7 @@ components:
               chainName:
                 type: string
                 example: ethereum
-      required: [fiatCurrency, cryptoCurrency, fiatMinAmount, fiatMaxAmount, supportedChains]
+      required: [fiatCurrency, cryptoCurrency, fiatMinAmount, fiatMaxAmount, cryptoMinAmount, cryptoMaxAmount, supportedChains]
 
     AssetInfo:
       type: object
@@ -578,10 +631,23 @@ components:
           format: uuid
           description: Quote ID from getQuote
           example: 73797374-656d-4000-8000-00008badf00d
-        clientOrderId:
+        clientUserId:
           type: string
-          description: Optional client-defined reference (echoed in webhooks and orderStatus)
-          example: hubpay-onramp-12345
+          description: |
+            Optional opaque reference to the client's own end user. Free-text
+            passthrough — no format or uniqueness constraint. Echoed on
+            `orderStatus`, `orderHistory`, and every webhook for the order.
+            (Replaces the former `clientOrderId` field, which was removed.)
+          example: 2f12878a-5edd-4539-af64-85c60ea17682
+        settlementAddress:
+          type: string
+          description: |
+            Optional per-order crypto destination override. Must be one of the
+            trading client's whitelisted addresses (or a HexSafe enterprise
+            vault address) on the quote's chain — otherwise rejected with
+            error `-32045`. When omitted, the pre-configured default for the
+            chain is used (`-32046` if no default exists).
+          example: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5"
       required: [quoteId]
 
     BankAccount:
@@ -790,10 +856,6 @@ components:
           type: string
           format: uuid
           example: 73797374-656d-4000-8000-00008badf00d
-        clientOrderId:
-          type: string
-          description: Client-defined order reference if provided on acceptQuote
-          example: hubpay-onramp-12345
         orderStatus:
           $ref: "#/components/schemas/OrderStatus"
         fiatCurrency:
@@ -871,6 +933,13 @@ components:
           type: string
           format: uuid
           example: 532e2873-3295-4fad-be8e-0a4c0c4647b2
+        clientUserId:
+          type: string
+          description: |
+            Client-supplied end-user reference from `acceptQuote`. Absent
+            (omitted, not null) when not provided — including all orders
+            created before this field existed.
+          example: 2f12878a-5edd-4539-af64-85c60ea17682
         enterpriseId:
           type: string
           format: uuid
@@ -1065,20 +1134,32 @@ components:
           format: uuid
           description: Stable order identifier, present on every event for this order
           example: 73797374-656d-4000-0000-00008badf00d
-        clientOrderId:
-          type: string
-          description: Client-defined order reference (echoed if provided on acceptQuote)
-          example: hubpay-onramp-12345
         order:
           allOf:
             - $ref: "#/components/schemas/OrderStatusResponse"
             - description: |
                 Full snapshot of the order resource, identical in shape to the
-                `GET /onramp/orderStatus` response. Reflects the **post-event
+                `GET /onramp/orderStatus` response — plus the three
+                **webhook-only, best-effort enrichment fields** below, which
+                may be absent on any given event (their lookups are
+                fire-and-forget server-side). Reflects the **post-event
                 state** — `orderStatus`, timestamp fields (`fiatReceivedAt`,
                 `tradeExecutedAt`, `settledAt`), and history arrays
                 (`fiatDepositTransactions`, `cryptoSettlementTransactions`) are
                 all updated to reflect that this event has just been applied.
+              properties:
+                clientName:
+                  type: string
+                  description: Trading-client display name (best-effort — may be absent)
+                  example: Hubpay Ltd
+                enterpriseName:
+                  type: string
+                  description: Enterprise display name (best-effort — may be absent)
+                  example: Hubpay
+                hexBrokerEntityName:
+                  type: string
+                  description: Hex Trust broker legal-entity name (best-effort — may be absent)
+                  example: Hex Trust Markets Ltd
       required: [orderId, order]
 
     WebhookMetadata:
@@ -1108,7 +1189,7 @@ components:
 # placeholders.
 
 x-webhook-examples:
-  # All 7 examples below share the same orderId / quoteId / clientOrderId so
+  # All 7 examples below share the same orderId / quoteId / clientUserId so
   # they can be read as a coherent narrative of one order's lifecycle.
   # The `data.order` snapshot in each event reflects post-event state.
   # `payload.id` is unique per webhook event; `signature` values are placeholders.
@@ -1125,11 +1206,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: ORDER_CREATED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1177,11 +1257,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: PARTIAL_FIAT_RECEIVED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1235,11 +1314,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: FIAT_RECEIVED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1294,11 +1372,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: TRADE_EXECUTED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1350,11 +1427,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: TRADE_SETTLED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1415,11 +1491,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: ORDER_EXPIRED
             fiatCurrency: USD
             fiatAmount: "100000.00"
@@ -1463,11 +1538,10 @@ x-webhook-examples:
         retryNum: 0
         data:
           orderId: 73797374-656d-4000-0000-00008badf00d
-          clientOrderId: hubpay-onramp-12345
           order:
             orderId: 73797374-656d-4000-0000-00008badf00d
             quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientOrderId: hubpay-onramp-12345
+            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
             orderStatus: FAILED
             fiatCurrency: USD
             fiatAmount: "100000.00"
