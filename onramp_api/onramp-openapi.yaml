@@ -5,9 +5,8 @@ info:
   description: |
     > **Changelog v1.2 (2026-08-14):** `PARTIAL_FIAT_RECEIVED` removed from the
     > state machine, webhook events, and examples — partial fiat settlements
-    > cannot be recorded in the current operational flow (settlement amount
-    > must match the order amount exactly). `FAILED` remains documented but is
-    > not yet triggered by any automated path.
+    > cannot be recorded (the settlement amount must match the order amount
+    > exactly).
     >
     > **Changelog v1.1 (2026-08-14, aligned to implementation):**
     > `clientOrderId` removed everywhere (request, responses, webhooks) —
@@ -64,8 +63,7 @@ info:
       └─→ TRADE_SETTLED ✓        (full crypto delivered on-chain — terminal)
     ORDER_EXPIRED
       └─→ FAILED ✗               (refund per re-quote / refund flow)
-    FAILED ✗                     (terminal — reserved for ops reject, sanctions, on-chain
-                                  failure, refund; NOT yet triggered by any automated path)
+    FAILED ✗                     (terminal — ops reject, sanctions, on-chain failure, refund)
     ```
 
     On-ramp **always settles the full amount in one shot**. The confirmed
@@ -442,7 +440,7 @@ components:
         - `TRADE_EXECUTED` — inventory debited at locked rate; awaiting on-chain confirmation
         - `TRADE_SETTLED` — stablecoin on-chain confirmed to client wallet ✓ terminal
         - `ORDER_EXPIRED` — window elapsed without full fiat ✗
-        - `FAILED` — terminal failure (ops reject, sanctions, on-chain failure, refund) ✗ — defined but not yet triggered by any automated path
+        - `FAILED` — terminal failure (ops reject, sanctions, on-chain failure, refund) ✗
       enum:
         - ORDER_CREATED
         - FIAT_RECEIVED
@@ -1073,7 +1071,7 @@ components:
         | `TRADE_EXECUTED` | Inventory debited at locked rate | `TRADE_EXECUTED` |
         | `TRADE_SETTLED` ✓ | Crypto on-chain confirmed (always full amount) | `TRADE_SETTLED` |
         | `ORDER_EXPIRED` | Window elapsed without full fiat | `ORDER_EXPIRED` |
-        | `FAILED` ✗ | Terminal failure (defined; not yet triggered by any automated path) | `FAILED` |
+        | `FAILED` ✗ | Terminal failure | `FAILED` |
       properties:
         eventType:
           type: string
@@ -1470,7 +1468,7 @@ x-webhook-examples:
       signature: FAKE6ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
 
   FAILED:
-    summary: Terminal failure — refund initiated to originating bank (event defined; not yet triggered by any automated path)
+    summary: Terminal failure — refund initiated to originating bank
     value:
       payload:
         eventType: FAILED
