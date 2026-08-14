@@ -1,8 +1,14 @@
 openapi: 3.0.3
 info:
   title: Hex Trust — On-Ramp Trading API
-  version: "1.1"
+  version: "1.2"
   description: |
+    > **Changelog v1.2 (2026-08-14):** `PARTIAL_FIAT_RECEIVED` removed from the
+    > state machine, webhook events, and examples — partial fiat settlements
+    > cannot be recorded in the current operational flow (settlement amount
+    > must match the order amount exactly). `FAILED` remains documented but is
+    > not yet triggered by any automated path.
+    >
     > **Changelog v1.1 (2026-08-14, aligned to implementation):**
     > `clientOrderId` removed everywhere (request, responses, webhooks) —
     > replaced by optional `clientUserId` on `acceptQuote`; optional
@@ -50,24 +56,23 @@ info:
     ## Order State Machine
     ```
     ORDER_CREATED
-      ├─→ PARTIAL_FIAT_RECEIVED  (partial wire received within window)
-      │     ├─→ FIAT_RECEIVED     (top-up reaches full OR trader amends order amount)
-      │     └─→ ORDER_EXPIRED     (window expires with partial only)
       ├─→ FIAT_RECEIVED          (full wire within window)
-      └─→ ORDER_EXPIRED          (window expires, no wire)
+      └─→ ORDER_EXPIRED          (window expires without full fiat)
     FIAT_RECEIVED
       └─→ TRADE_EXECUTED         (inventory debited at locked rate)
     TRADE_EXECUTED
       └─→ TRADE_SETTLED ✓        (full crypto delivered on-chain — terminal)
     ORDER_EXPIRED
       └─→ FAILED ✗               (refund per re-quote / refund flow)
-    FAILED ✗                     (terminal — ops reject, sanctions, on-chain failure, refund)
+    FAILED ✗                     (terminal — reserved for ops reject, sanctions, on-chain
+                                  failure, refund; NOT yet triggered by any automated path)
     ```
 
-    On-ramp **always settles the full amount in one shot** — there is no
-    `SETTLED_PARTIAL_AMOUNT` state. If the client wires a partial amount, the
-    trader either rejects + refunds, or amends the order amount to match the
-    partial deposit and then executes as a normal full settlement.
+    On-ramp **always settles the full amount in one shot**. The confirmed
+    fiat settlement must match the order amount exactly — partial wires
+    cannot be recorded against an order in the current operational flow.
+    If you wire an amount different from the order's `fiatAmount`, contact
+    your Hex Trust representative to resolve it out-of-band.
 
     ## Crypto Destination Resolution
     The crypto destination (stablecoin delivery address) is resolved at
@@ -433,15 +438,13 @@ components:
       description: |
         On-ramp order state:
         - `ORDER_CREATED` — quote accepted; rate locked; bank account issued; awaiting fiat
-        - `PARTIAL_FIAT_RECEIVED` — partial wire received within window; trader will decide to amend or reject
         - `FIAT_RECEIVED` — full fiat amount confirmed by ops (CL1 settled)
         - `TRADE_EXECUTED` — inventory debited at locked rate; awaiting on-chain confirmation
         - `TRADE_SETTLED` — stablecoin on-chain confirmed to client wallet ✓ terminal
         - `ORDER_EXPIRED` — window elapsed without full fiat ✗
-        - `FAILED` — terminal failure (ops reject, sanctions, on-chain failure, refund) ✗
+        - `FAILED` — terminal failure (ops reject, sanctions, on-chain failure, refund) ✗ — defined but not yet triggered by any automated path
       enum:
         - ORDER_CREATED
-        - PARTIAL_FIAT_RECEIVED
         - FIAT_RECEIVED
         - TRADE_EXECUTED
         - TRADE_SETTLED
@@ -919,13 +922,12 @@ components:
         receivedFiatAmount:
           type: string
           description: |
-            Cumulative fiat received so far (non-zero when in PARTIAL_FIAT_RECEIVED
-            or after the trader amends the order amount).
+            Cumulative fiat received so far.
           example: "100000.00"
         amendedFiatAmount:
           type: string
           description: |
-            If the trader amended the order amount to match a partial deposit,
+            If the trader amended the order amount (ops-driven, exceptional),
             this is the new locked `fiatAmount`. The on-chain delivery is sized
             against this amended amount.
           example: "100000.00"
@@ -1067,18 +1069,16 @@ components:
         | Event | Fires when | Post-event `data.order.orderStatus` |
         |---|---|---|
         | `ORDER_CREATED` | acceptQuote bound; bank accounts issued | `ORDER_CREATED` |
-        | `PARTIAL_FIAT_RECEIVED` | Ops confirms a partial wire | `PARTIAL_FIAT_RECEIVED` |
         | `FIAT_RECEIVED` | Ops confirms full fiat (CL1 settled) | `FIAT_RECEIVED` |
         | `TRADE_EXECUTED` | Inventory debited at locked rate | `TRADE_EXECUTED` |
         | `TRADE_SETTLED` ✓ | Crypto on-chain confirmed (always full amount) | `TRADE_SETTLED` |
         | `ORDER_EXPIRED` | Window elapsed without full fiat | `ORDER_EXPIRED` |
-        | `FAILED` ✗ | Terminal failure | `FAILED` |
+        | `FAILED` ✗ | Terminal failure (defined; not yet triggered by any automated path) | `FAILED` |
       properties:
         eventType:
           type: string
           enum:
             - ORDER_CREATED
-            - PARTIAL_FIAT_RECEIVED
             - FIAT_RECEIVED
             - TRADE_EXECUTED
             - TRADE_SETTLED
@@ -1189,7 +1189,7 @@ components:
 # placeholders.
 
 x-webhook-examples:
-  # All 7 examples below share the same orderId / quoteId / clientUserId so
+  # All 6 examples below share the same orderId / quoteId / clientUserId so
   # they can be read as a coherent narrative of one order's lifecycle.
   # The `data.order` snapshot in each event reflects post-event state.
   # `payload.id` is unique per webhook event; `signature` values are placeholders.
@@ -1244,63 +1244,6 @@ x-webhook-examples:
           apiVersion: "1.0"
           environment: production
       signature: FAKE1ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
-
-  PARTIAL_FIAT_RECEIVED:
-    summary: Ops confirmed a partial wire; trader will decide to amend the order or reject
-    value:
-      payload:
-        eventType: PARTIAL_FIAT_RECEIVED
-        id: 22e0177f-25d5-5cbe-9aba-1c46cb66f601
-        currentWebhookCallAt: "2026-03-05T22:10:03.273Z"
-        eventTriggerAt: "2026-03-05T22:10:00.000Z"
-        firstWebhookCallAt: "2026-03-05T22:10:01.958Z"
-        retryNum: 0
-        data:
-          orderId: 73797374-656d-4000-0000-00008badf00d
-          order:
-            orderId: 73797374-656d-4000-0000-00008badf00d
-            quoteId: 73797374-656d-4000-8000-00008badf00d
-            clientUserId: 2f12878a-5edd-4539-af64-85c60ea17682
-            orderStatus: PARTIAL_FIAT_RECEIVED
-            fiatCurrency: USD
-            fiatAmount: "100000.00"
-            cryptoCurrency: USDC
-            cryptoAmount: "99950.00"
-            lockedRate: "0.99950"
-            inverseRate: "1.00050"
-            bankAccounts:
-              - beneficiaryName: Hex Trust Markets Ltd
-                bankName: Standard Chartered Bank
-                accountNumber: "01234567890123"
-                swiftCode: SCBLUS33XXX
-                routingNumber: "026002561"
-                currency: USD
-              - beneficiaryName: Hex Trust Markets Ltd
-                bankName: BCB Bank
-                accountNumber: "98765432101234"
-                routingNumber: "021000089"
-                currency: USD
-            cryptoDestination: "0x4f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bF"
-            chainId: "1"
-            chainName: ethereum
-            expiresAt: 1741296256789
-            createTime: 1741123456789
-            receivedFiatAmount: "60000.00"
-            clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
-            enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
-            fiatDepositTransactions:
-              - bankTxId: SCB20260527000122
-                amount: "60000.00"
-                currency: USD
-                valueDate: 1741200000000
-                confirmedAt: 1741209000000
-                originatingBank: HSBC HONG KONG
-                status: CONFIRMED
-            cryptoSettlementTransactions: []
-        metadata:
-          apiVersion: "1.0"
-          environment: production
-      signature: FAKE2ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
 
   FIAT_RECEIVED:
     summary: Full fiat amount confirmed by ops (CL1 settled); trade proceeds
@@ -1480,7 +1423,7 @@ x-webhook-examples:
       signature: FAKE5ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
 
   ORDER_EXPIRED:
-    summary: Window elapsed with no wire (or only a partial wire that wasn't resolved)
+    summary: Window elapsed without the full fiat amount arriving
     value:
       payload:
         eventType: ORDER_EXPIRED
@@ -1527,7 +1470,7 @@ x-webhook-examples:
       signature: FAKE6ITiPcgVKOOewoySZPwq7aGaFAv+7P6jMFGYVoSu5bPNdc3HEaQLz2yySLcLraeJW3evkskymLRuoAVmDQ==
 
   FAILED:
-    summary: Terminal failure — trader rejected partial; refund initiated to originating bank
+    summary: Terminal failure — refund initiated to originating bank (event defined; not yet triggered by any automated path)
     value:
       payload:
         eventType: FAILED
@@ -1564,7 +1507,7 @@ x-webhook-examples:
             expiresAt: 1741296256789
             createTime: 1741123456789
             receivedFiatAmount: "60000.00"
-            failureReason: Trader rejected partial fiat amount; refund initiated to originating bank
+            failureReason: Order expired without full fiat; refund initiated to originating bank
             clientId: 532e2873-3295-4fad-be8e-0a4c0c4647b2
             enterpriseId: 8a5f6d1c-4d3e-47e1-9e8f-0b3c2d4e5f6a
             fiatDepositTransactions:
